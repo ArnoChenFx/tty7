@@ -90,6 +90,33 @@ pub fn translate_en(key: L10nKey) -> &'static str {
 
         L10nKey::SearchTabs => "Search tabs…",
         L10nKey::SearchFiles => "Search files…",
+        L10nKey::PanelSearchPlaceholder => "Search in files…",
+        L10nKey::PanelSearchWholeWord => "Match whole word",
+        L10nKey::PanelSearchIdle => "Search the contents of every file under:",
+        L10nKey::PanelSearchNoFolder => "No folder to search.",
+        L10nKey::PanelSearchNoFolderHint => {
+            "Search looks through the project the active tab is in."
+        }
+        L10nKey::PanelSearchSshPane => "Search can't look inside an SSH pane's files.",
+        L10nKey::PanelSearchSshPaneHint => {
+            "Open the host as a remote workspace to search it, or browse it in Files."
+        }
+        L10nKey::PanelSearchSearching => "Searching…",
+        L10nKey::PanelSearchNoMatches => "No results for “{query}”.",
+        L10nKey::PanelSearchBadPattern => "Not a valid regular expression: {e}",
+        L10nKey::PanelSearchServerTooOld => {
+            "The tty7-server on this machine is too old to search file contents."
+        }
+        L10nKey::PanelSearchServerTooOldHint => "Update the server on that host to use Search.",
+        L10nKey::PanelSearchFailed => "Search failed: {e}",
+        L10nKey::PanelSearchResultCount => "{count} results",
+        L10nKey::PanelSearchFileCount => "{count} files",
+        L10nKey::PanelSearchSummary => "{results} in {files}",
+        L10nKey::PanelSearchTruncated => {
+            "Not every match is shown. Narrow the search to see the rest."
+        }
+        L10nKey::PanelSearchLineTooltip => "Line {line}, column {column}",
+        L10nKey::PanelSearchHostGone => "The machine this project is on is not connected.",
         L10nKey::SearchThemes => "Search themes…",
         L10nKey::SearchSettings => "Search settings…",
         L10nKey::FilterHosts => "Filter hosts…",
@@ -1159,6 +1186,8 @@ pub fn translate_en(key: L10nKey) -> &'static str {
         L10nKey::PanelChangesTitle => "Changes",
         L10nKey::PanelScmTitle => "Changes",
         L10nKey::PanelFilesTitle => "Files",
+        L10nKey::PanelSearchTitle => "Search",
+        L10nKey::PanelGitHubTitle => "GitHub",
         L10nKey::PanelNoSession => "No active session.",
         L10nKey::PanelNoSessionHint => {
             "Open a tab to see its shell, directory, and processes here."
@@ -1604,6 +1633,8 @@ pub fn translate_en(key: L10nKey) -> &'static str {
         L10nKey::CmdRightPanelInfo => "Right Panel: Info",
         L10nKey::CmdRightPanelChanges => "Right Panel: Changes",
         L10nKey::CmdRightPanelFiles => "Right Panel: Files",
+        L10nKey::CmdRightPanelSearch => "Right Panel: Search",
+        L10nKey::CmdRightPanelGitHub => "Right Panel: GitHub",
         L10nKey::CmdChangeTheme => "Change Theme…",
         L10nKey::CmdResetFontSize => "Reset Font Size",
         L10nKey::CmdEnterFullScreen => "Enter Full Screen",
@@ -1997,6 +2028,48 @@ pub fn translate_en(key: L10nKey) -> &'static str {
         L10nKey::TabContextWake => "Wake",
         L10nKey::TabTooltipAsleep => "Hibernated — select to wake",
         L10nKey::TabWakeFailed => "Could not wake the tab: none of its panes could be started",
+        // ---- The right panel's GitHub tab ----
+        L10nKey::GitHubIssues => "Issues",
+        L10nKey::GitHubPulls => "Pull Requests",
+        L10nKey::GitHubOpen => "Open",
+        L10nKey::GitHubClosed => "Closed",
+        L10nKey::GitHubMerged => "Merged",
+        L10nKey::GitHubDraft => "Draft",
+        L10nKey::GitHubNotPlanned => "Not planned",
+        L10nKey::GitHubRefresh => "Refresh",
+        L10nKey::GitHubOpenOnGitHub => "Open on GitHub",
+        L10nKey::GitHubShowRemote => "Show issues from",
+        L10nKey::GitHubLoadMore => "Load more",
+        L10nKey::GitHubNoRemote => "No GitHub remote",
+        L10nKey::GitHubNoRemoteHint => "None of this repository's remotes point at github.com.",
+        L10nKey::GitHubNoIssues => "No issues match.",
+        L10nKey::GitHubNoPulls => "No pull requests match.",
+        L10nKey::GitHubSignInHint => "Sign in with `gh auth login` in a terminal, then refresh.",
+        L10nKey::GitHubNotFoundSignedOut => {
+            "GitHub did not find this repository. If it is private, sign in first."
+        }
+        L10nKey::GitHubNotFoundSignedIn => {
+            "GitHub did not find this repository, or this account cannot see it."
+        }
+        L10nKey::GitHubUnauthorized => "GitHub rejected the saved sign-in.",
+        L10nKey::GitHubRateLimited => "GitHub's rate limit is used up.",
+        L10nKey::GitHubRateLimitResetIn => "It resets in {n} min.",
+        L10nKey::GitHubRateLimitSignedOut => {
+            "Signed out, GitHub allows 60 requests an hour. Sign in with `gh auth login` for more."
+        }
+        L10nKey::GitHubForbidden => "GitHub refused the request.",
+        L10nKey::GitHubNetworkError => "Could not reach GitHub.",
+        L10nKey::GitHubHttpError => "GitHub answered with an error ({code}).",
+        L10nKey::GitHubDecodeError => "GitHub sent a response tty7 could not read.",
+        L10nKey::GitHubMoreOnGitHub => "More on GitHub",
+        L10nKey::GitHubNoDescription => "No description provided.",
+        L10nKey::GitHubFilterByLabel => "Show only this label",
+        L10nKey::GitHubClearLabel => "Clear label filter",
+        L10nKey::GitHubImage => "image",
+        L10nKey::GitHubComments => "{count} comments",
+        L10nKey::GitHubCommits => "{count} commits",
+        L10nKey::GitHubOpenedAt => "opened {when}",
+        L10nKey::GitHubUpdatedAt => "updated {when}",
     }
 }
 
@@ -2005,6 +2078,12 @@ pub fn translate_variant_en(key: L10nKey, branch: &'static str) -> Option<&'stat
         (L10nKey::SettingsMatchCount, "zero") => "No matches",
         (L10nKey::SettingsMatchCount, "one") => "1 match",
         (L10nKey::SettingsMatchCount, "other") => "{count} matches",
+        (L10nKey::PanelSearchResultCount, "zero") => "No results",
+        (L10nKey::PanelSearchResultCount, "one") => "1 result",
+        (L10nKey::PanelSearchResultCount, "other") => "{count} results",
+        (L10nKey::PanelSearchFileCount, "zero") => "no files",
+        (L10nKey::PanelSearchFileCount, "one") => "1 file",
+        (L10nKey::PanelSearchFileCount, "other") => "{count} files",
         (L10nKey::SettingsRestoreChanged, "zero") => "Restore changes",
         (L10nKey::SettingsRestoreChanged, "one") => "Restore 1 changed",
         (L10nKey::SettingsRestoreChanged, "other") => "Restore {count} changed",
@@ -2151,6 +2230,13 @@ pub fn translate_variant_en(key: L10nKey, branch: &'static str) -> Option<&'stat
         (L10nKey::WindowDeleteShells, "other") => {
             "{count} running shells will be ended and the layout forgotten."
         }
+        // ---- The right panel's GitHub tab ----
+        (L10nKey::GitHubComments, "zero") => "No comments",
+        (L10nKey::GitHubComments, "one") => "1 comment",
+        (L10nKey::GitHubComments, "other") => "{count} comments",
+        (L10nKey::GitHubCommits, "zero") => "No commits",
+        (L10nKey::GitHubCommits, "one") => "1 commit",
+        (L10nKey::GitHubCommits, "other") => "{count} commits",
         _ => return None,
     };
     Some(res)

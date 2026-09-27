@@ -146,6 +146,26 @@ l10n_keys! {
 
     SearchTabs,
     SearchFiles,
+    // The right panel's Search tab (find in files).
+    PanelSearchPlaceholder,
+    PanelSearchWholeWord,
+    PanelSearchIdle,
+    PanelSearchNoFolder,
+    PanelSearchNoFolderHint,
+    PanelSearchSshPane,
+    PanelSearchSshPaneHint,
+    PanelSearchSearching,
+    PanelSearchNoMatches,
+    PanelSearchBadPattern,
+    PanelSearchServerTooOld,
+    PanelSearchServerTooOldHint,
+    PanelSearchFailed,
+    PanelSearchResultCount,
+    PanelSearchFileCount,
+    PanelSearchSummary,
+    PanelSearchTruncated,
+    PanelSearchLineTooltip,
+    PanelSearchHostGone,
     SearchThemes,
     SearchSettings,
     FilterHosts,
@@ -906,6 +926,8 @@ l10n_keys! {
     PanelChangesTitle,
     PanelScmTitle,
     PanelFilesTitle,
+    PanelSearchTitle,
+    PanelGitHubTitle,
     PanelNoSession,
     PanelNoSessionHint,
     PanelNoWorkingDirectory,
@@ -1365,6 +1387,8 @@ l10n_keys! {
     CmdRightPanelInfo,
     CmdRightPanelChanges,
     CmdRightPanelFiles,
+    CmdRightPanelSearch,
+    CmdRightPanelGitHub,
     CmdChangeTheme,
     CmdResetFontSize,
     CmdEnterFullScreen,
@@ -1569,6 +1593,42 @@ l10n_keys! {
     AppLocalServerAlreadyCurrent,
     RemoteUpdateBody,
     RemoteUpdateNeedsLocalServer,
+    // ---- The right panel's GitHub tab ----
+    GitHubIssues,
+    GitHubPulls,
+    GitHubOpen,
+    GitHubClosed,
+    GitHubMerged,
+    GitHubDraft,
+    GitHubNotPlanned,
+    GitHubRefresh,
+    GitHubOpenOnGitHub,
+    GitHubShowRemote,
+    GitHubLoadMore,
+    GitHubNoRemote,
+    GitHubNoRemoteHint,
+    GitHubNoIssues,
+    GitHubNoPulls,
+    GitHubSignInHint,
+    GitHubNotFoundSignedOut,
+    GitHubNotFoundSignedIn,
+    GitHubUnauthorized,
+    GitHubRateLimited,
+    GitHubRateLimitResetIn,
+    GitHubRateLimitSignedOut,
+    GitHubForbidden,
+    GitHubNetworkError,
+    GitHubHttpError,
+    GitHubDecodeError,
+    GitHubMoreOnGitHub,
+    GitHubNoDescription,
+    GitHubFilterByLabel,
+    GitHubClearLabel,
+    GitHubImage,
+    GitHubComments,
+    GitHubCommits,
+    GitHubOpenedAt,
+    GitHubUpdatedAt,
 }
 
 /// The source control strings that are translated but not yet displayed.
@@ -1779,6 +1839,8 @@ mod tests {
             // The quick-launch rows, which the New Tab menu finds by typing
             // this one word into the palette in every locale.
             L10nKey::AppCmdAgentLaunchTitle,
+            // A product name, spelled the same in every language.
+            L10nKey::PanelGitHubTitle,
         ];
 
         for &key in KEPT_IN_ENGLISH {
@@ -1881,6 +1943,8 @@ mod tests {
             L10nKey::HomeTimeDaysAgo,
             L10nKey::HomeTimeWeeksAgo,
             L10nKey::HomeTimeMonthsAgo,
+            L10nKey::GitHubComments,
+            L10nKey::GitHubCommits,
         ];
         for key in plural_keys {
             for branch in ["zero", "one", "other"] {

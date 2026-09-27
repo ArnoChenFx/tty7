@@ -48,6 +48,14 @@ sha2 = "0.11"
 # implementation.
 ignore = "0.4"
 
+# The matcher behind `Host::search_content` (the right panel's Search tab):
+# a literal, whole-word or regular-expression query compiled once and run over
+# each file the `ignore` walk above hands it. Lives here for the same reason
+# `ignore` does — a remote `tty7-server` answers the search with the identical
+# implementation. Already in the tree via the GUI and `ignore`, so this pins no
+# new code.
+regex = "1"
+
 # Format-preserving TOML editing for `core::agent_hooks`: Kimi Code takes its
 # hooks as `[[hooks]]` entries in the same `config.toml` that holds the user's
 # providers, models and comments, so installing must edit that file in place
@@ -231,6 +239,10 @@ remote-install = [
     "dep:system-configuration",
     "dep:system-configuration-sys",
 ]
+# The GitHub tab's REST client (`core::github::http`). It rides the same HTTPS
+# stack and system-proxy resolution as the installer, so it is that feature
+# plus a name of its own: the server, which never reads GitHub, builds neither.
+github = ["remote-install"]
 
 [lints]
 workspace = true

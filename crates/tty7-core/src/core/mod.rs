@@ -6,6 +6,7 @@ pub mod codename;
 pub mod config;
 pub mod crash;
 pub mod git;
+pub mod github;
 pub mod gitignore;
 pub mod group_key;
 #[allow(dead_code)]

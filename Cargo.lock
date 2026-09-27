@@ -3365,7 +3365,7 @@ dependencies = [
 [[package]]
 name = "gpui-component"
 version = "0.5.2"
-source = "git+https://github.com/l0ng-ai/gpui-component?branch=tty7#51a6925955adda598c9363915a06eae6de5dd8df"
+source = "git+https://github.com/l0ng-ai/gpui-component?branch=tty7#6af19d91285bde86151287addcbb9d81266bbf30"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -3448,7 +3448,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-assets"
 version = "0.5.1"
-source = "git+https://github.com/l0ng-ai/gpui-component?branch=tty7#51a6925955adda598c9363915a06eae6de5dd8df"
+source = "git+https://github.com/l0ng-ai/gpui-component?branch=tty7#6af19d91285bde86151287addcbb9d81266bbf30"
 dependencies = [
  "anyhow",
  "gpui",
@@ -3462,7 +3462,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-macros"
 version = "0.5.1"
-source = "git+https://github.com/l0ng-ai/gpui-component?branch=tty7#51a6925955adda598c9363915a06eae6de5dd8df"
+source = "git+https://github.com/l0ng-ai/gpui-component?branch=tty7#6af19d91285bde86151287addcbb9d81266bbf30"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -9974,6 +9974,7 @@ dependencies = [
  "miniz_oxide",
  "notify 8.2.0",
  "portable-pty",
+ "regex",
  "rusqlite",
  "russh",
  "russh-sftp",

@@ -618,48 +618,56 @@ pub(crate) fn chrome_tile(button: Button, selected: bool, cx: &gpui::App) -> But
     chrome_tile_sized(button, TILE_SIZE, TILE_GLYPH, selected, cx)
 }
 
-const RIGHT_PANEL_TABS: [(RightPanelTab, L10nKey); 3] = [
-    (RightPanelTab::Info, L10nKey::PanelInfoTitle),
-    (RightPanelTab::Scm, L10nKey::PanelChangesTitle),
-    (RightPanelTab::Files, L10nKey::PanelFilesTitle),
+/// The right panel's tabs, left to right: which pane, what its tooltip calls
+/// it, and the glyph the row draws for it. Info leads as the default and the
+/// pane's overview; then two pairs — the project's files (Files, Search) and
+/// its version control, local to remote (Changes, GitHub). GitHub is last so
+/// that hiding it for a repository without a GitHub remote moves nothing.
+const RIGHT_PANEL_TABS: [(RightPanelTab, L10nKey, &str); 5] = [
+    (
+        RightPanelTab::Info,
+        L10nKey::PanelInfoTitle,
+        "icons/info.svg",
+    ),
+    (
+        RightPanelTab::Files,
+        L10nKey::PanelFilesTitle,
+        "icons/folder.svg",
+    ),
+    (
+        RightPanelTab::Search,
+        L10nKey::PanelSearchTitle,
+        "icons/search.svg",
+    ),
+    (
+        RightPanelTab::Scm,
+        L10nKey::PanelChangesTitle,
+        "icons/git-branch.svg",
+    ),
+    (
+        RightPanelTab::GitHub,
+        L10nKey::PanelGitHubTitle,
+        "icons/github.svg",
+    ),
 ];
 
-fn right_panel_tab_size(window: &Window) -> f32 {
-    window.rem_size().as_f32() * crate::ui::right_panel::TAB_TEXT
+/// The glyph each tab draws, in px.
+const RIGHT_PANEL_TAB_ICON: f32 = 15.;
+
+/// What the bare tab glyphs take, padding included. The panel's floor is
+/// built on it, so the chrome tiles beside them always fit.
+pub(crate) fn right_panel_tab_labels_w(_window: &Window, _cx: &gpui::App) -> f32 {
+    RIGHT_PANEL_TABS.len() as f32 * (RIGHT_PANEL_TAB_ICON + 2. * (TAB_OUTER_PAD + TAB_INNER_PAD))
 }
 
-fn right_panel_tab_font(cx: &gpui::App) -> gpui::Font {
-    gpui::Font {
-        family: cx.theme().font_family.clone(),
-        features: Default::default(),
-        fallbacks: None,
-        // The current tab's weight, which is the widest any label is drawn at.
-        weight: FontWeight::MEDIUM,
-        style: Default::default(),
-    }
-}
-
-/// What the three bare tab labels take, padding included, at the live
-/// interface size and language. The panel's floor is built on it, so a larger
-/// UI font widens the panel instead of pushing its chrome tiles off the edge.
-pub(crate) fn right_panel_tab_labels_w(window: &Window, cx: &gpui::App) -> f32 {
-    let size = right_panel_tab_size(window);
-    let font = right_panel_tab_font(cx);
-    RIGHT_PANEL_TABS
-        .iter()
-        .map(|(_, key)| {
-            measure_text(window.text_system(), &font, size, t(*key))
-                + 2. * (TAB_OUTER_PAD + TAB_INNER_PAD)
-        })
-        .sum()
-}
-
-/// Right panel tab geometry: each label's click target reaches half the 18px
-/// gap to its neighbour, there is no pill inside it, and the Changes count
-/// hangs 5px off its label.
-pub(crate) const TAB_OUTER_PAD: f32 = 9.;
-const TAB_INNER_PAD: f32 = 0.;
-const TAB_COUNT_GAP: f32 = 5.;
+/// Right panel tab geometry: each tab's click target reaches this far past
+/// its pill, so neighbouring pills sit twice this apart.
+pub(crate) const TAB_OUTER_PAD: f32 = 2.;
+/// The selected tab's pill reaches this far past its glyph.
+const TAB_INNER_PAD: f32 = 5.;
+/// The pill's height and corner.
+const TAB_PILL_H: f32 = 24.;
+const TAB_PILL_RADIUS: f32 = 6.;
 
 /// How wide the two chrome tiles at the trailing end of the title bar are, with
 /// the padding around them.
@@ -1270,58 +1278,27 @@ impl Tty7App {
             )
     }
 
-    /// The right panel's word tabs, laid out in `avail` px.
+    /// The right panel's tabs: a glyph each, named in a tooltip.
     ///
-    /// A label is never elided — "C…" is not a tab anyone can read — so when
-    /// the row runs short the Changes count is what gives way: it repeats what
-    /// the panel body says, the label does not. `right_panel::MIN_WIDTH` is
-    /// what guarantees the three bare labels always fit.
-    pub(crate) fn right_panel_tabs(
-        &self,
-        avail: f32,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> Vec<AnyElement> {
+    /// No count on Changes: a number beside one glyph of five read as a badge
+    /// on that tab alone, and the Changes tab itself leads with the same count
+    /// under its own heading.
+    pub(crate) fn right_panel_tabs(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let active_tab = self.right_panel_tab;
-        // The count the source control tile carries. It reads the same status
-        // the panel draws, so the badge and the group headers can never
-        // disagree — and it counts entries, not files, because a path that is
-        // both staged and modified is two things to do, which is what the
-        // groups show.
-        let changed = self
-            .scm
-            .active_repo()
-            .and_then(|repo| crate::terminal::git_data::status_of(cx, repo.host, &repo.root))
-            .map(|status| status.entries.len())
-            .filter(|n| *n > 0);
-        let size = right_panel_tab_size(window);
-        let font = right_panel_tab_font(cx);
-        let ts = window.text_system();
-        let labels_w = right_panel_tab_labels_w(window, cx);
-        let changed = changed.filter(|n| {
-            let regular = gpui::Font {
-                weight: FontWeight::NORMAL,
-                ..font.clone()
-            };
-            labels_w + TAB_COUNT_GAP + measure_text(ts, &regular, size, &n.to_string()) <= avail
-        });
         let body_ink = cx.theme().foreground;
+        let selected_fill = cx.global::<crate::ui::presets::Surfaces>().sidebar.selected;
         RIGHT_PANEL_TABS
             .into_iter()
-            .map(|(tab, label_key)| {
+            .map(|(tab, label_key, icon)| {
                 let current = active_tab == tab;
-                // Words, not glyphs: three tabs is few enough to name, and a name
-                // is what a new user has to guess at when the tab is an icon. The
-                // current one is told apart by ink and weight alone — this is
-                // secondary navigation, not an action, so it gets neither a
-                // pill nor a bar.
+                // Glyphs, not words: five names do not fit the panel's 280px
+                // resting width, so each tab is an icon and says its name in a
+                // tooltip. Ink alone could not carry "this one" between five
+                // glyphs of one weight, so the current tab also sits on the
+                // sidebar's selected fill.
                 let ink = match current {
                     true => body_ink,
                     false => cx.theme().muted_foreground,
-                };
-                let count = match tab {
-                    RightPanelTab::Scm => changed,
-                    _ => None,
                 };
                 div()
                     .id(("right-panel-tab", tab as usize))
@@ -1337,27 +1314,22 @@ impl Tty7App {
                     .child(
                         h_flex()
                             .flex_shrink_0()
+                            .h(px(TAB_PILL_H))
                             .px(px(TAB_INNER_PAD))
-                            .gap(px(TAB_COUNT_GAP))
+                            .rounded(px(TAB_PILL_RADIUS))
+                            .when(current, |pill| pill.bg(gpui::rgb(selected_fill)))
                             .items_center()
-                            .text_size(gpui::rems(crate::ui::right_panel::TAB_TEXT))
-                            .font_weight(match current {
-                                true => FontWeight::MEDIUM,
-                                false => FontWeight::NORMAL,
-                            })
                             .text_color(ink)
                             .hover(move |s| s.text_color(body_ink))
-                            .child(div().flex_shrink_0().child(t(label_key)))
-                            .when_some(count, |row, n| {
-                                row.child(
-                                    div()
-                                        .flex_shrink_0()
-                                        .font_weight(FontWeight::NORMAL)
-                                        .text_color(cx.theme().muted_foreground)
-                                        .child(n.to_string()),
-                                )
-                            }),
+                            .child(
+                                gpui::svg()
+                                    .flex_shrink_0()
+                                    .path(icon)
+                                    .size(px(RIGHT_PANEL_TAB_ICON))
+                                    .text_color(ink),
+                            ),
                     )
+                    .tooltip(move |window, cx| Tooltip::new(t(label_key)).build(window, cx))
                     // Another tab switches to it; the current one puts the panel
                     // away, the way an activity bar behaves everywhere else.
                     // (These only exist while the panel is open, so

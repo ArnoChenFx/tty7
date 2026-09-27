@@ -904,11 +904,13 @@ pub struct Tty7App {
     pub(crate) sftp_panel: crate::ui::sftp::SftpPanelState,
     pub(crate) right_panel: crate::ui::right_panel::RightPanelState,
     pub(crate) scm: crate::ui::scm::ScmPanelState,
+    pub(crate) github: crate::ui::github::GitHubPanelState,
     pub(crate) diff_probes_inflight:
         std::collections::HashSet<(crate::ui::host_ops::HostId, std::path::PathBuf)>,
     pub(crate) diff_probes_restale:
         std::collections::HashSet<(crate::ui::host_ops::HostId, std::path::PathBuf)>,
     pub(crate) file_tree: crate::ui::file_tree::FileTreeState,
+    pub(crate) panel_search: crate::ui::panel_search::PanelSearchState,
     pub(crate) editor: crate::ui::code_editor::EditorPanelState,
     pub(crate) sidebar_width: Rc<Cell<f32>>,
     pub(crate) sidebar_dragging: Rc<Cell<bool>>,
@@ -1371,6 +1373,7 @@ impl Tty7App {
         };
         let sftp_panel = crate::ui::sftp::SftpPanelState::new(window, cx);
         let file_tree = crate::ui::file_tree::FileTreeState::new(window, cx);
+        let panel_search = crate::ui::panel_search::PanelSearchState::new(window, cx);
         let editor = crate::ui::code_editor::EditorPanelState::new(window, cx);
         let mf_bind_host = cx.new(|cx| InputState::new(window, cx).default_value("127.0.0.1"));
         let mf_bind_port = cx.new(|cx| InputState::new(window, cx).placeholder("8080"));
@@ -1544,9 +1547,11 @@ impl Tty7App {
                 },
                 ..Default::default()
             },
+            github: Default::default(),
             diff_probes_inflight: Default::default(),
             diff_probes_restale: Default::default(),
             file_tree,
+            panel_search,
             editor,
             sidebar_width: Rc::new(Cell::new(sidebar_width)),
             sidebar_dragging: Rc::new(Cell::new(false)),
@@ -6773,6 +6778,9 @@ impl Tty7App {
         self.file_search.update(cx, |state, cx| {
             state.set_placeholder(t(L10nKey::SearchFiles), window, cx)
         });
+        self.panel_search.input.update(cx, |state, cx| {
+            state.set_placeholder(t(L10nKey::PanelSearchPlaceholder), window, cx)
+        });
         // The remote Files panel is built once with the app, so its placeholder
         // is the one input that would otherwise keep the old language.
         self.sftp_panel.filter_input.update(cx, |state, cx| {
@@ -9089,6 +9097,12 @@ impl Render for Tty7App {
                 }))
                 .on_action(cx.listener(|this, _: &ShowRightPanelFiles, _window, cx| {
                     this.set_right_panel_tab(crate::core::config::RightPanelTab::Files, cx)
+                }))
+                .on_action(cx.listener(|this, _: &ShowRightPanelSearch, _window, cx| {
+                    this.set_right_panel_tab(crate::core::config::RightPanelTab::Search, cx)
+                }))
+                .on_action(cx.listener(|this, _: &ShowRightPanelGitHub, _window, cx| {
+                    this.set_right_panel_tab(crate::core::config::RightPanelTab::GitHub, cx)
                 }))
                 .on_action(
                     cx.listener(|this, _: &ScmToggleGraph, _window, cx| this.scm_toggle_graph(cx)),
