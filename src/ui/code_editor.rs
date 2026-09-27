@@ -5,7 +5,7 @@ use std::sync::Arc;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, Entity, EntityInputHandler as _, Focusable as _, MouseButton, PromptLevel,
-    SharedString, Subscription, Window, div, px,
+    SharedString, Subscription, Window, div, px, rems,
 };
 use gpui_component::button::{Button, ButtonVariants as _};
 use gpui_component::input::{Input, InputEvent, InputState, Position, RopeExt as _, TabSize};
@@ -1048,12 +1048,15 @@ impl Tty7App {
         if let Err(e) = crate::terminal::view::open_file_path(path) {
             log::warn!("failed to open {}: {e}", path.display());
             window.push_notification(
-                t_fmt(
-                    L10nKey::LinkFileOpenFailed,
-                    &[
-                        ("path", &path.display().to_string()),
-                        ("error", &e.to_string()),
-                    ],
+                crate::ui::host_ops::failure(
+                    t_fmt(
+                        L10nKey::LinkFileOpenFailed,
+                        &[
+                            ("path", &path.display().to_string()),
+                            ("error", &e.to_string()),
+                        ],
+                    ),
+                    &e,
                 ),
                 cx,
             );
@@ -3033,63 +3036,93 @@ impl Tty7App {
         conflict: DiskConflict,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        use crate::ui::dialog::{self, Tone};
+        let theme = cx.theme();
+        let rungs = cx.global::<crate::ui::presets::Surfaces>().window;
+        // The floating notices' grammar, laid flat: a neutral strip over a
+        // hairline, and the state carried by one amber dot. A strip tinted
+        // amber end to end, with a white outlined button from the component
+        // library beside a bare-text one, was three visual languages in one
+        // 32px row.
+        //
+        // The filled answer is always the safe one: Keep mine / Save hold on
+        // to the unsaved edits, Reload / Close throw them away, so those are
+        // offered, not pressed on the reader.
         let row = h_flex()
             .flex_none()
             .w_full()
             .items_center()
-            .gap_2()
-            .px_2()
-            .py_1()
-            .bg(cx.theme().warning.opacity(0.15))
+            .gap(px(8.))
+            .pl(px(dialog::INSET))
+            .pr(px(6.))
+            .h(px(dialog::FOOTER_H))
             .border_b_1()
-            .border_color(cx.theme().border)
-            .text_sm();
+            .border_color(theme.border)
+            .text_size(rems(crate::ui::right_panel::TAB_TEXT))
+            .child(
+                div()
+                    .flex_none()
+                    .size(px(6.))
+                    .rounded_full()
+                    .bg(theme.warning),
+            );
+        let message = |key| div().flex_1().min_w_0().truncate().child(t(key));
         match conflict {
             DiskConflict::Changed(observed) => row
-                .child(div().flex_1().child(t(L10nKey::FileChangedOnDisk)))
-                .child(
-                    Button::new("editor-conflict-reload")
-                        .label(t(L10nKey::Reload))
-                        .small()
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            this.editor_reload_from_disk(id, window, cx);
-                        })),
-                )
-                .child(
-                    Button::new("editor-conflict-keep")
-                        .label(t(L10nKey::KeepMine))
-                        .ghost()
-                        .small()
-                        .on_click(cx.listener(move |this, _, _w, cx| {
-                            if let Some(f) = this.buffer_mut(id) {
-                                // The version seen on disk is now the one a
-                                // save is allowed to replace.
-                                f.disk_mtime = observed;
-                                f.conflict = None;
-                                cx.notify();
-                            }
-                        })),
-                )
+                .child(message(L10nKey::FileChangedOnDisk))
+                .child(dialog::button(
+                    "editor-conflict-reload",
+                    t(L10nKey::Reload),
+                    Tone::Secondary,
+                    true,
+                    rungs,
+                    cx,
+                    cx.listener(move |this, _, window, cx| {
+                        this.editor_reload_from_disk(id, window, cx);
+                    }),
+                ))
+                .child(dialog::button(
+                    "editor-conflict-keep",
+                    t(L10nKey::KeepMine),
+                    Tone::Primary,
+                    true,
+                    rungs,
+                    cx,
+                    cx.listener(move |this, _, _w, cx| {
+                        if let Some(f) = this.buffer_mut(id) {
+                            // The version seen on disk is now the one a
+                            // save is allowed to replace.
+                            f.disk_mtime = observed;
+                            f.conflict = None;
+                            cx.notify();
+                        }
+                    }),
+                ))
                 .into_any_element(),
             DiskConflict::Deleted => row
-                .child(div().flex_1().child(t(L10nKey::EditorFileDeletedOnDisk)))
-                .child(
-                    Button::new("editor-deleted-save")
-                        .label(t(L10nKey::Save))
-                        .small()
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            this.editor_save_file(id, false, true, window, cx);
-                        })),
-                )
-                .child(
-                    Button::new("editor-deleted-close")
-                        .label(t(L10nKey::Close))
-                        .ghost()
-                        .small()
-                        .on_click(cx.listener(move |this, _, _w, cx| {
-                            this.editor_drop_buffer(id, cx);
-                        })),
-                )
+                .child(message(L10nKey::EditorFileDeletedOnDisk))
+                .child(dialog::button(
+                    "editor-deleted-close",
+                    t(L10nKey::Close),
+                    Tone::Secondary,
+                    true,
+                    rungs,
+                    cx,
+                    cx.listener(move |this, _, _w, cx| {
+                        this.editor_drop_buffer(id, cx);
+                    }),
+                ))
+                .child(dialog::button(
+                    "editor-deleted-save",
+                    t(L10nKey::Save),
+                    Tone::Primary,
+                    true,
+                    rungs,
+                    cx,
+                    cx.listener(move |this, _, window, cx| {
+                        this.editor_save_file(id, false, true, window, cx);
+                    }),
+                ))
                 .into_any_element(),
         }
     }

@@ -526,7 +526,9 @@ pub fn translate_ja(key: L10nKey) -> Option<&'static str> {
         L10nKey::SettingsOn => "オン",
         L10nKey::SettingsOff => "オフ",
         L10nKey::SettingsShell => "シェル",
-        L10nKey::SettingsShellIntro => "新しいターミナルで起動するプログラム。空欄なら {default}",
+        L10nKey::SettingsShellIntro => {
+            "新しいターミナルで起動するプログラム。空欄なら{default}を使います。"
+        }
         L10nKey::SettingsProgram => "シェルプログラム",
         L10nKey::SettingsProgramDesc => "PATH 上の名前か絶対パス。例: zsh、fish",
         L10nKey::SettingsArguments => "シェル引数",
@@ -1160,8 +1162,10 @@ pub fn translate_ja(key: L10nKey) -> Option<&'static str> {
         L10nKey::FileTreePlaceholderFolderName => "フォルダ名",
         L10nKey::FileTreePlaceholderNewName => "新しい名前",
         L10nKey::FileTreeDeleteTitle => "「{name}」を削除しますか？",
-        L10nKey::FileTreeDeleteFolderBody => "フォルダとその中のすべての項目が削除されます",
-        L10nKey::FileTreeDeleteFileBody => "ファイルが削除されます",
+        L10nKey::FileTreeDeleteFolderBody => {
+            "フォルダとその中のすべての項目が削除されます。この操作は元に戻せません。"
+        }
+        L10nKey::FileTreeDeleteFileBody => "この操作は元に戻せません。",
         L10nKey::SftpDeleteFolderBody => {
             "{host} 上でフォルダとその中身がすべて削除されます。リモート側にゴミ箱はありません。"
         }
@@ -1619,7 +1623,7 @@ pub fn translate_ja(key: L10nKey) -> Option<&'static str> {
         L10nKey::SshPromptConnect => "接続",
         L10nKey::SshPromptUnlock => "ロック解除",
         L10nKey::SshPromptSubmit => "送信",
-        L10nKey::HostOpsError => "{context}: {error}",
+        L10nKey::GitOpFailed => "git {op} に失敗しました",
         L10nKey::IoDenied => "権限がありません。",
         L10nKey::IoGone => "もう存在しません。",
         L10nKey::IoNoSpace => "ディスクに空き容量がありません。",
