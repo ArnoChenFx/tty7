@@ -2461,6 +2461,26 @@ impl Tty7App {
         // that opens the search where it stands. The rail beside it already
         // names every tab, so the bar has no title of its own to repeat. The
         // box alone takes the pointer; the rest of the bar still drags.
+        //
+        // Centred over the terminal column, not the bar. Off macOS the bar
+        // spans the workspace while a document or the detail panel is docked,
+        // and centred on all of it the box landed under the document's
+        // hoisted header, which has no fill to hide it. The strip already
+        // stops short of the window controls, so they come off the columns'
+        // share.
+        let search_right = match cfg!(target_os = "macos") {
+            true => 0.,
+            false => {
+                let panel = match self.right_panel_open(cx) {
+                    true => self.right_panel_px(window, cx),
+                    false => 0.,
+                };
+                match panel + document_w > 0. {
+                    true => (panel + document_w - controls_w).max(0.),
+                    false => 0.,
+                }
+            }
+        };
         let centre_search = (!show_chips).then(|| {
             // The chord as text, not caps: a cap's fill is this box's own
             // grey, so on it a cap is only a gap between two letters.
@@ -2468,7 +2488,10 @@ impl Tty7App {
                 .map(|spec| crate::ui::keymap::key_tokens(&spec).join(""));
             div()
                 .absolute()
-                .inset_0()
+                .top_0()
+                .bottom_0()
+                .left_0()
+                .right(px(search_right))
                 .flex()
                 .items_center()
                 .justify_center()
