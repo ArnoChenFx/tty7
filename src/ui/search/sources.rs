@@ -143,7 +143,7 @@ impl Catalog {
             return sources
                 .into_iter()
                 .filter_map(|s| {
-                    let rows: Vec<Row> = s.highlights(cx).into_iter().map(Row::Item).collect();
+                    let rows = recent_then_rest(s.as_ref(), cx);
                     (!rows.is_empty()).then(|| Section {
                         title: Some(s.tab().title().into()),
                         rows,
@@ -179,6 +179,47 @@ impl Catalog {
         found.sort_by_key(|(best, _)| std::cmp::Reverse(*best));
         found.into_iter().map(|(_, section)| section).collect()
     }
+}
+
+/// A tab's rows on the All tab before anything is typed: what it has been
+/// used for lately first, topped up from the rest of the tab to
+/// [`ALL_TAB_ROWS`], then a row into the tab for whatever did not fit. An
+/// empty query is someone looking around, and a list that only shows what they
+/// have already used has nothing to show a fresh window — so every tab that
+/// has anything is on the page, and the way into all of it is one row away.
+fn recent_then_rest(source: &dyn Source, cx: &App) -> Vec<Row> {
+    let mut shown = source.highlights(cx);
+    shown.truncate(ALL_TAB_ROWS);
+    let rest: Vec<Item> = source
+        .browse(cx)
+        .into_iter()
+        .flat_map(|section| section.rows)
+        .filter_map(|row| match row {
+            Row::Item(item) => Some(item),
+            Row::More { .. } => None,
+        })
+        .collect();
+    let mut hidden = 0;
+    for item in rest {
+        if shown
+            .iter()
+            .any(|s| s.kind == item.kind && s.title == item.title)
+        {
+            continue;
+        }
+        match shown.len() < ALL_TAB_ROWS {
+            true => shown.push(item),
+            false => hidden += 1,
+        }
+    }
+    let mut rows: Vec<Row> = shown.into_iter().map(Row::Item).collect();
+    if hidden > 0 {
+        rows.push(Row::More {
+            tab: source.tab(),
+            hidden,
+        });
+    }
+    rows
 }
 
 /// A search result: one section, no header — the order is the answer.
@@ -596,9 +637,9 @@ mod tests {
         });
     }
 
-    /// Before anything is typed the All tab offers this window's other tabs —
-    /// the likeliest thing wanted — and never another workspace's, a launcher,
-    /// or a header over nothing.
+    /// Before anything is typed the All tab leads with this window's other
+    /// tabs — the likeliest thing wanted — and tops the section up from the
+    /// rest of the tab, so a tab with anything in it is never missing.
     #[gpui::test]
     fn the_empty_all_tab_leads_with_this_windows_other_tabs(cx: &mut TestAppContext) {
         with_config(cx);
@@ -609,13 +650,12 @@ mod tests {
         let catalog = Catalog::new(Vec::new(), terminals, Vec::new());
         cx.update(|cx| {
             let sections = catalog.sections(SearchTab::All, "", cx);
-            assert_eq!(
-                sections.len(),
-                1,
-                "no recent actions and no hosts: no headers"
-            );
+            assert_eq!(sections.len(), 1, "no actions and no hosts: no headers");
             assert_eq!(sections[0].title.as_deref(), Some("Terminals"));
-            assert_eq!(row_titles(&sections[0]), vec!["previous", "older"]);
+            assert_eq!(
+                row_titles(&sections[0]),
+                vec!["previous", "older", "elsewhere", "Shell: zsh"]
+            );
         });
     }
 
@@ -654,9 +694,9 @@ mod tests {
     }
 
     /// Before anything is typed, the All tab offers to pick up where you left
-    /// off here — and never a session from some other project.
+    /// off here first; past its rows, the rest of the tab is one row away.
     #[gpui::test]
-    fn the_empty_all_tab_offers_only_this_directorys_sessions(cx: &mut TestAppContext) {
+    fn the_empty_all_tab_leads_with_this_directorys_sessions(cx: &mut TestAppContext) {
         with_config(cx);
         let mut catalog = Catalog::new(Vec::new(), Vec::new(), Vec::new());
         catalog.sessions = (0..5)
@@ -668,13 +708,21 @@ mod tests {
             let sections = catalog.sections(SearchTab::All, "", cx);
             assert_eq!(sections.len(), 1);
             assert_eq!(sections[0].title.as_deref(), Some("Sessions"));
-            assert_eq!(row_titles(&sections[0]), vec!["here 0", "here 1", "here 2"]);
+            let rows = &sections[0].rows;
+            assert_eq!(rows.len(), ALL_TAB_ROWS + 1);
+            assert_eq!(rows[0].item().map(|i| i.title.as_ref()), Some("here 0"));
+            assert!(matches!(
+                rows[ALL_TAB_ROWS],
+                Row::More {
+                    tab: SearchTab::Sessions,
+                    hidden: 1
+                }
+            ));
 
+            // Nothing ran here: the section still shows, from everywhere.
             catalog.sessions_here = 0;
-            assert!(
-                catalog.sections(SearchTab::All, "", cx).is_empty(),
-                "no session ran here, so none is offered"
-            );
+            let sections = catalog.sections(SearchTab::All, "", cx);
+            assert_eq!(sections[0].title.as_deref(), Some("Sessions"));
 
             // The tab itself lists them all, here first.
             let own = catalog.sections(SearchTab::Sessions, "", cx);
