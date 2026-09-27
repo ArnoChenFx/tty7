@@ -128,6 +128,8 @@ actions!(
         SendBackTab,
         SwitcherAcross,
         SwitcherAcrossBack,
+        SearchNextTab,
+        SearchPrevTab,
         Quit
     ]
 );
