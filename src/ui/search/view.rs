@@ -3,12 +3,12 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, ClickEvent, Context, Entity, EventEmitter, MouseButton, MouseDownEvent, ScrollStrategy,
-    Subscription, Task, Window, div, prelude::*, px,
+    App, ClickEvent, Context, Entity, EventEmitter, FontWeight, MouseButton, MouseDownEvent,
+    ScrollStrategy, Subscription, Task, Window, div, prelude::*, px, rems,
 };
 use gpui_component::{
-    ActiveTheme as _, IndexPath, h_flex,
-    list::{List, ListDelegate, ListEvent, ListItem, ListState},
+    ActiveTheme as _, IndexPath, Selectable, h_flex,
+    list::{List, ListDelegate, ListEvent, ListState},
     v_flex,
 };
 
@@ -16,6 +16,7 @@ use super::SearchTab;
 use super::command::{CommandKind, Item};
 use super::sources::{Catalog, Row, Section, plain};
 use crate::core::actions::{SearchNextTab, SearchPrevTab};
+use crate::ui::dialog::{CARD_RADIUS, FOOTER_H, KEYCAP, keycap};
 use crate::ui::i18n::{L10nKey, t, t_fmt};
 
 /// What the list is showing: one of the tabs, or the theme picker one of the
@@ -83,12 +84,15 @@ impl SearchDelegate {
     }
 
     fn render_row(&self, ix: IndexPath, item: &Item, cx: &App) -> gpui::AnyElement {
-        let (kbd_bg, border, muted) = {
+        let picked = Some(ix) == self.selected;
+        let (fg, muted) = {
             let t = cx.theme();
-            (t.secondary.opacity(0.6), t.border, t.muted_foreground)
+            (t.foreground, t.muted_foreground)
         };
 
-        let mut left = h_flex().flex_1().min_w_0().items_center().gap_2();
+        // The title holds its width longest; the subtitle beside it is what
+        // truncates first.
+        let mut left = h_flex().flex_1().min_w_0().items_center().gap(px(8.));
         if let Some(avatar) = item.avatar {
             left = left.child(crate::ui::tab_strip::avatar(
                 ("search-avatar", ix.section * 1000 + ix.row),
@@ -97,49 +101,61 @@ impl SearchDelegate {
                 cx,
             ));
         }
-        left = left.child(div().truncate().child(item.title.clone()));
+        left = left.child(
+            div()
+                .flex_shrink_0()
+                .max_w_full()
+                .truncate()
+                .text_color(fg)
+                .when(picked, |d| d.font_weight(FontWeight::MEDIUM))
+                .child(item.title.clone()),
+        );
         if let Some(subtitle) = item.subtitle.clone() {
-            left = left.child(div().truncate().text_xs().text_color(muted).child(subtitle));
+            left = left.child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .text_size(rems(ROW_META))
+                    .text_color(muted)
+                    .child(subtitle),
+            );
         }
 
-        let mut right = h_flex().flex_shrink_0().items_center().gap_2();
+        let mut right = h_flex().flex_shrink_0().items_center().gap(px(8.));
         if let Some(note) = item.note.clone() {
-            right = right.child(div().text_xs().text_color(muted).child(note));
+            right = right.child(
+                div()
+                    .text_size(rems(ROW_META))
+                    .text_color(muted)
+                    .child(note),
+            );
         }
         if item.kind.edit_variant().is_some() {
             right = right.child(
                 h_flex()
                     .items_center()
-                    .gap_1()
-                    .text_xs()
+                    .gap(px(6.))
+                    .text_size(rems(ROW_META))
                     .text_color(muted)
                     .child(t(L10nKey::EditHint))
-                    .child(crate::ui::keymap::key_tokens(EDIT_GESTURE).join("")),
+                    .child(keycap(
+                        crate::ui::keymap::key_tokens(EDIT_GESTURE).join(""),
+                        cx,
+                    )),
             );
         }
         if let Some(spec) = item.kind.key_spec(cx) {
             let tokens = crate::ui::keymap::key_tokens(&spec);
-            right = right.child(h_flex().gap_1().children(tokens.into_iter().map(move |t| {
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .min_w(px(20.))
-                    .h(px(20.))
-                    .px_1()
-                    .rounded_md()
-                    .bg(kbd_bg)
-                    .border_1()
-                    .border_color(border)
-                    .text_xs()
-                    .text_color(muted)
-                    .child(t)
-            })));
+            right = right.child(
+                h_flex()
+                    .gap(px(3.))
+                    .children(tokens.into_iter().map(|t| keycap(t, cx))),
+            );
         }
 
         h_flex()
             .w_full()
-            .gap_3()
+            .gap(px(12.))
             .items_center()
             .justify_between()
             .child(left)
@@ -149,7 +165,7 @@ impl SearchDelegate {
 }
 
 impl ListDelegate for SearchDelegate {
-    type Item = ListItem;
+    type Item = SearchRow;
 
     fn sections_count(&self, _cx: &App) -> usize {
         self.sections.len().max(1)
@@ -186,12 +202,15 @@ impl ListDelegate for SearchDelegate {
         cx: &mut Context<ListState<Self>>,
     ) -> Option<impl IntoElement> {
         let title = self.sections.get(section)?.title.clone()?;
+        // The sidebar's group heading: medium, a half step under the rows, in
+        // caption ink — never capitals, never a rule under it.
         Some(
             h_flex()
-                .h(px(ROW_H))
+                .h(px(HEADER_H))
                 .px(px(LABEL_INSET))
                 .items_center()
-                .text_xs()
+                .text_size(rems(crate::ui::right_panel::HEADING))
+                .font_weight(FontWeight::MEDIUM)
                 .text_color(cx.theme().muted_foreground)
                 .child(title),
         )
@@ -211,14 +230,23 @@ impl ListDelegate for SearchDelegate {
             }
             _ => t(L10nKey::PaletteTryDifferentSearch),
         };
+        // The headline in body ink and the way out under it in caption ink:
+        // two greys of the same size read as one sentence cut in half.
+        let theme = cx.theme();
         v_flex()
-            .py_8()
-            .gap_1()
+            .py(px(32.))
+            .px(px(LABEL_INSET))
+            .gap(px(4.))
             .items_center()
-            .text_sm()
-            .text_color(cx.theme().muted_foreground)
+            .text_size(rems(ROW_TEXT))
+            .text_color(theme.foreground)
             .child(t(L10nKey::SearchNoResults))
-            .child(div().text_xs().child(hint))
+            .child(
+                div()
+                    .text_size(rems(ROW_META))
+                    .text_color(theme.muted_foreground)
+                    .child(hint),
+            )
     }
 
     fn render_item(
@@ -238,22 +266,14 @@ impl ListDelegate for SearchDelegate {
                     L10nKey::SearchMoreIn,
                     &[("count", &hidden.to_string()), ("tab", tab.title())],
                 ))
-                .child(
-                    div()
-                        .text_xs()
-                        .child(crate::ui::keymap::key_tokens("tab").join("")),
-                )
+                .child(keycap(crate::ui::keymap::key_tokens("tab").join(""), cx))
                 .into_any_element(),
         };
-        Some(
-            ListItem::new(("search-row", ix.section * 1000 + ix.row))
-                .selected(Some(ix) == self.selected)
-                .h(px(ROW_H))
-                .mx(px(ROW_MX))
-                .rounded(crate::ui::rounding::ROW_RADIUS)
-                .text_size(gpui::rems(13. / 16.))
-                .child(content),
-        )
+        Some(SearchRow {
+            id: ("search-row", ix.section * 1000 + ix.row).into(),
+            selected: Some(ix) == self.selected,
+            child: content,
+        })
     }
 
     fn set_selected_index(
@@ -519,17 +539,16 @@ impl SearchView {
     }
 
     fn render_tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        // The tabs take the rows' neutral steps: the one showing is where the
+        // list is, not an action, so it is the selected step and not an accent.
+        let sf = cx.global::<crate::ui::presets::Surfaces>().popover;
+        let (active_bg, hover_bg) = (gpui::rgb(sf.selected), gpui::rgb(sf.hover));
         let theme = cx.theme();
-        let (active_bg, hover_bg, fg, muted) = (
-            theme.secondary,
-            theme.secondary.opacity(0.5),
-            theme.foreground,
-            theme.muted_foreground,
-        );
+        let (fg, muted) = (theme.foreground, theme.muted_foreground);
         h_flex()
-            .px(px(ROW_MX + 4.))
+            .px(px(LIST_PAD))
             .pt(px(8.))
-            .gap_1()
+            .gap(px(2.))
             .items_center()
             .children(SearchTab::ORDER.into_iter().enumerate().map(|(i, tab)| {
                 let active = tab == self.tab;
@@ -539,14 +558,14 @@ impl SearchView {
                     .px(px(10.))
                     .flex()
                     .items_center()
-                    .rounded_md()
-                    .text_size(gpui::rems(12. / 16.))
+                    .rounded(px(6.))
+                    .text_size(rems(ROW_META))
                     .cursor_pointer()
                     .map(|d| match active {
                         true => d
                             .bg(active_bg)
                             .text_color(fg)
-                            .font_weight(gpui::FontWeight::MEDIUM),
+                            .font_weight(FontWeight::MEDIUM),
                         false => d.text_color(muted).hover(move |d| d.bg(hover_bg)),
                     })
                     .child(tab.title())
@@ -556,27 +575,85 @@ impl SearchView {
                     }))
             }))
             .child(div().flex_1())
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(muted)
-                    .child(crate::ui::keymap::key_tokens("tab").join("")),
-            )
+            .child(keycap(crate::ui::keymap::key_tokens("tab").join(""), cx))
+    }
+
+    /// The switcher's footer, minus its New workspace button: the keys that
+    /// move and run, as caps with a word after each.
+    fn render_footer(&self, cx: &App) -> impl IntoElement + use<> {
+        let theme = cx.theme();
+        let hint = |keys: Vec<gpui::AnyElement>, label: &'static str| {
+            h_flex()
+                .items_center()
+                .gap(px(6.))
+                .children(keys)
+                .child(label)
+        };
+        h_flex()
+            .flex_none()
+            .items_center()
+            .justify_end()
+            .gap(px(16.))
+            .h(px(FOOTER_H))
+            .px(px(14.))
+            .border_t_1()
+            .border_color(theme.border)
+            .overflow_hidden()
+            .text_size(rems(ROW_META))
+            .text_color(theme.muted_foreground)
+            .child(hint(
+                vec![keycap("↑", cx), keycap("↓", cx)],
+                t(L10nKey::SwitcherHintNavigate),
+            ))
+            .child(hint(vec![keycap("↵", cx)], t(L10nKey::SwitcherHintOpen)))
     }
 }
 
 impl EventEmitter<SearchEvent> for SearchView {}
 
-const ROW_H: f32 = 34.;
+// The search is the workspace switcher's sibling (see `switcher.rs`): the
+// same card, the same corner, the same keycaps and footer, and the same
+// neutral step for the row the keyboard is on. The numbers below are the ones
+// the switcher uses wherever the two overlays show the same thing, so opening
+// one after the other does not move the chrome.
 
-/// Left inset of a row's *label*, so a section header can start on the same
-/// pixel column as the rows it introduces. A row is a `ListItem` inset by
-/// `ROW_MX` whose own padding is `px_3`; a header has neither, so it has to
-/// carry the sum itself.
-const ROW_MX: f32 = 5.;
-const LABEL_INSET: f32 = ROW_MX + 12.;
+/// How tall a row is. One line where the switcher's rows carry two; 32 keeps
+/// an 18px keycap clear of the row's edges by the same 7px the switcher's
+/// footer gives its own.
+const ROW_H: f32 = 32.;
 
-const AVATAR: f32 = 20.;
+/// A section heading: the right panel's 28px heading row.
+const HEADER_H: f32 = 28.;
+
+/// How far the list sits in from the card's edges, and how far a row's text
+/// then sits in from its own fill — the switcher's `COLUMN_PAD` and
+/// `ROW_PAD`.
+const LIST_PAD: f32 = 8.;
+const ROW_PAD: f32 = 10.;
+
+/// Where a row's label starts, so a section heading lands on the same column
+/// as the rows under it. A heading has neither the row's inset nor its
+/// padding, so it carries the sum.
+const LABEL_INSET: f32 = LIST_PAD + ROW_PAD;
+
+/// The row fill's corner — the switcher's `LIST_RADIUS`.
+const ROW_RADIUS: f32 = 8.;
+
+/// The card's breathing room from the window's bottom edge, and its width.
+/// Its corner and its footer are `ui::dialog`'s, the switcher's numbers.
+const CARD_MARGIN: f32 = 24.;
+const CARD_MAX_W: f32 = 600.;
+
+/// The search row gpui-component's `List` draws above the rows: a 32px field
+/// with 6px above and below and a 1px rule.
+const SEARCH_H: f32 = 32. + 6. * 2. + 1.;
+
+/// A row's title, and the subtitle, hints and keycaps beside it: the
+/// switcher's row name and its metadata line.
+const ROW_TEXT: f32 = 13. / 16.;
+const ROW_META: f32 = 11.5 / 16.;
+
+const AVATAR: f32 = 18.;
 
 /// The tab row's height with its padding, reserved out of the list's.
 const TABS_H: f32 = 32.;
@@ -615,29 +692,50 @@ impl Render for SearchView {
         let tabs = !self.in_themes();
 
         let viewport = window.viewport_size();
-        let top = (viewport.height.as_f32() * 0.16).clamp(16., 120.);
-        // Reserve space for the tab row, the search field and the card's
-        // padding, including when a split-screen window is shorter than the
-        // full list.
-        let chrome = 88. + if tabs { TABS_H } else { 0. };
-        let list_max_h =
-            px((viewport.height.as_f32() - top - chrome).clamp(ROW_H, ROW_H * VISIBLE_ROWS + 4.));
+        // The switcher's drop from the top on a full-size window; a short one
+        // still brings the card up to keep its rows.
+        let top = (viewport.height.as_f32() * 0.16).clamp(16., crate::ui::switcher::CARD_TOP);
+        // Reserve space for the tab row, the search row, the footer and the
+        // card's margin, including when a split-screen window is shorter than
+        // the full list.
+        let tabs_h = if tabs { TABS_H } else { 0. };
+        let chrome = tabs_h + SEARCH_H + FOOTER_H + CARD_MARGIN;
+        let list_max_h = px((viewport.height.as_f32() - top - chrome)
+            .max(ROW_H)
+            .min(ROW_H * VISIBLE_ROWS + LIST_PAD * 2.));
+        let typed = !self.list.read(cx).delegate().query.is_empty();
         let placeholder = match tabs {
             true => self.tab.placeholder(),
             false => t(L10nKey::SearchTheme),
         };
         let card = v_flex()
-            .w(px((viewport.width.as_f32() - 32.).clamp(0., 640.)))
+            .relative()
+            .w(px((viewport.width.as_f32() - 32.).clamp(0., CARD_MAX_W)))
             .map(|panel| crate::ui::theme::floating_surface(panel, cx))
+            .rounded(px(CARD_RADIUS))
             .overflow_hidden()
-            .pb_1()
             .when(tabs, |card| card.child(self.render_tabs(cx)))
             .child(
                 List::new(&self.list)
                     .search_placeholder(placeholder)
-                    .py_1()
+                    .py(px(LIST_PAD))
                     .max_h(list_max_h),
-            );
+            )
+            // The switcher's `esc` cap in the search row's trailing corner.
+            // Laid over the row rather than inside it — the row is the list's
+            // own — and only while the field is empty, since typing brings up
+            // the field's clear button in the same spot. No handlers, so a
+            // click on it still reaches the field under it.
+            .when(!typed, |card| {
+                card.child(
+                    div()
+                        .absolute()
+                        .top(px(tabs_h + (SEARCH_H - 1. - KEYCAP) / 2.))
+                        .right(px(14.))
+                        .child(keycap("esc", cx)),
+                )
+            })
+            .child(self.render_footer(cx));
 
         div()
             .absolute()
@@ -669,6 +767,54 @@ impl Render for SearchView {
                 }),
             )
             .child(div().occlude().child(card))
+    }
+}
+
+/// A search row.
+///
+/// Its own element rather than gpui-component's `ListItem`, which paints the
+/// keyboard row in the theme's `list_active` — the accent wash menus use. The
+/// search's keyboard row is where the cursor is, not an action, so it takes
+/// the popover's neutral selected step the switcher's rows do. The list moves
+/// the selection under the pointer, so hover and selection are one bar; the
+/// hover step here only shows while a row is under the pointer and the
+/// selection has not caught up with it.
+#[derive(IntoElement)]
+pub struct SearchRow {
+    id: gpui::ElementId,
+    selected: bool,
+    child: gpui::AnyElement,
+}
+
+impl Selectable for SearchRow {
+    fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+
+    fn is_selected(&self) -> bool {
+        self.selected
+    }
+}
+
+impl RenderOnce for SearchRow {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let sf = cx.global::<crate::ui::presets::Surfaces>().popover;
+        let (hover, picked) = (gpui::rgb(sf.hover), gpui::rgb(sf.selected));
+        h_flex()
+            .id(self.id)
+            .items_center()
+            .h(px(ROW_H))
+            .mx(px(LIST_PAD))
+            .px(px(ROW_PAD))
+            .rounded(px(ROW_RADIUS))
+            .overflow_hidden()
+            .cursor_pointer()
+            .text_size(rems(ROW_TEXT))
+            .text_color(cx.theme().foreground)
+            .when(self.selected, |r| r.bg(picked))
+            .when(!self.selected, |r| r.hover(move |s| s.bg(hover)))
+            .child(self.child)
     }
 }
 

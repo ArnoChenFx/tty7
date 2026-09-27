@@ -473,13 +473,20 @@ pub(crate) fn elide_label(
 
 /// Keeps the longest tail of `text` that fits after a bare ellipsis. Shared
 /// by the path and token elisions as their last resort.
-fn elide_tail_clusters(
+pub(crate) fn elide_tail_clusters(
     text_system: &gpui::WindowTextSystem,
     font: &gpui::Font,
     size: f32,
     text: &str,
     max_width: f32,
 ) -> SharedString {
+    // Nothing to cut. The search below is bounded by the budget *after* the
+    // ellipsis, so without this a branch that fit came back as "…" plus the
+    // whole of itself — the rail's group header printed `…feat/v4-redesign`
+    // with room to spare.
+    if measure_text(text_system, font, size, text) <= max_width {
+        return SharedString::from(text.to_string());
+    }
     let budget = max_width - measure_text(text_system, font, size, "…");
     if budget <= 0. {
         return SharedString::from("…");
@@ -567,6 +574,17 @@ pub(crate) fn chrome_tile_variant_for(selected: bool, cx: &gpui::App) -> ButtonC
 
 pub(crate) const BUTTON_ICON_SCALE: f32 = 0.75;
 
+/// The rail header's icon tiles: 26px boxes with a 6px corner, the glyph a
+/// notch under the toolbar's so the pair sits quieter than the rows below.
+pub(crate) const RAIL_TILE: f32 = 26.;
+
+/// A sidebar row's trailing status dot, and the box it is centred in (wide
+/// enough for the unread pill that replaces it).
+pub(crate) const ROW_STATUS_DOT: f32 = 5.;
+pub(crate) const ROW_STATUS_SLOT: f32 = 14.;
+pub(crate) const RAIL_TILE_GLYPH: f32 = 14.;
+pub(crate) const RAIL_TILE_RADIUS: f32 = 6.;
+
 /// WCAG 2.2 SC 2.5.8 puts the desktop floor for a pointer target at 24×24, and
 /// gpui-component renders an icon-only `.xsmall()` button as a 20×20 box (18×18
 /// where the chrome overrode it). Grow only the box: the glyph keeps its size,
@@ -608,7 +626,7 @@ const RIGHT_PANEL_TABS: [(RightPanelTab, L10nKey); 3] = [
 ];
 
 fn right_panel_tab_size(window: &Window) -> f32 {
-    window.rem_size().as_f32() * crate::ui::right_panel::META
+    window.rem_size().as_f32() * crate::ui::right_panel::TAB_TEXT
 }
 
 fn right_panel_tab_font(cx: &gpui::App) -> gpui::Font {
@@ -616,7 +634,8 @@ fn right_panel_tab_font(cx: &gpui::App) -> gpui::Font {
         family: cx.theme().font_family.clone(),
         features: Default::default(),
         fallbacks: None,
-        weight: FontWeight::SEMIBOLD,
+        // The current tab's weight, which is the widest any label is drawn at.
+        weight: FontWeight::MEDIUM,
         style: Default::default(),
     }
 }
@@ -636,10 +655,11 @@ pub(crate) fn right_panel_tab_labels_w(window: &Window, cx: &gpui::App) -> f32 {
         .sum()
 }
 
-/// Right panel tab geometry: the gap between two tabs' hover pills, the pill's
-/// own inset around its label, and the gap before the Changes count.
-const TAB_OUTER_PAD: f32 = 2.;
-const TAB_INNER_PAD: f32 = 8.;
+/// Right panel tab geometry: each label's click target reaches half the 18px
+/// gap to its neighbour, there is no pill inside it, and the Changes count
+/// hangs 5px off its label.
+pub(crate) const TAB_OUTER_PAD: f32 = 9.;
+const TAB_INNER_PAD: f32 = 0.;
 const TAB_COUNT_GAP: f32 = 5.;
 
 /// How wide the two chrome tiles at the trailing end of the title bar are, with
@@ -1090,7 +1110,7 @@ pub(crate) fn select_workspace_action(index: usize) -> Option<Box<dyn gpui::Acti
 }
 
 impl Tty7App {
-    pub(crate) const AVATAR_PX: f32 = 20.0;
+    pub(crate) const AVATAR_PX: f32 = 18.0;
 
     pub(crate) fn workspace_head(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         if let Some(rename) = self.workspace_rename.as_ref() {
@@ -1184,7 +1204,7 @@ impl Tty7App {
                     .xsmall()
                     .w_full()
                     .h(px(28.))
-                    .rounded_md()
+                    .rounded(px(7.))
                     .tooltip_element(chord_tooltip(
                         t(L10nKey::HomeSwitchWorkspace),
                         "ToggleSwitcher",
@@ -1197,8 +1217,10 @@ impl Tty7App {
             .into_any_element()
     }
 
+    /// The app menu tile, `tile` px square with the chrome glyph in it.
     pub(crate) fn app_menu_tile(
         &self,
+        tile: f32,
         window: &Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
@@ -1209,8 +1231,10 @@ impl Tty7App {
             .map(|leaf| leaf.read(cx).focus_handle.clone())
             .unwrap_or_else(|| self.home_focus.clone());
         div().occlude().flex_shrink_0().child(
-            chrome_tile(
+            chrome_tile_sized(
                 Button::new("titlebar-app-menu").icon(IconName::Ellipsis),
+                tile,
+                TILE_GLYPH,
                 false,
                 cx,
             )
@@ -1234,18 +1258,38 @@ impl Tty7App {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
+        let trailing = match cfg!(target_os = "macos") {
+            true => tile_trailing_inset(),
+            false => 4.,
+        };
+        self.window_chrome_sized(TILE_SIZE, 2., trailing, window, cx)
+    }
+
+    /// [`Self::window_chrome`] at another size: `tile` px squares, `gap` apart,
+    /// `trailing` px short of the far edge. The right panel's own tab row is
+    /// the one caller that wants other numbers — see
+    /// `right_panel::PANEL_CHROME_TILE`.
+    pub(crate) fn window_chrome_sized(
+        &self,
+        tile: f32,
+        gap: f32,
+        trailing: f32,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
         let panel_open = self.right_panel_open(cx);
         h_flex()
             .flex_shrink_0()
             .items_center()
-            .gap(px(2.))
-            .pr(px(tile_trailing_inset()))
-            .when(!cfg!(target_os = "macos"), |this| this.pr_1())
+            .gap(px(gap))
+            .pr(px(trailing))
             .child(
                 div().occlude().flex_shrink_0().child(
-                    chrome_tile(
+                    chrome_tile_sized(
                         Button::new("titlebar-right-panel")
                             .icon(Icon::empty().path("icons/panel-right.svg")),
+                        tile,
+                        TILE_GLYPH,
                         false,
                         cx,
                     )
@@ -1273,7 +1317,7 @@ impl Tty7App {
                     })),
                 ),
             )
-            .child(self.app_menu_tile(window, cx))
+            .child(self.app_menu_tile(tile, window, cx))
     }
 
     /// The right panel's word tabs, laid out in `avail` px.
@@ -1300,7 +1344,6 @@ impl Tty7App {
             .and_then(|repo| crate::terminal::git_data::status_of(cx, repo.host, &repo.root))
             .map(|status| status.entries.len())
             .filter(|n| *n > 0);
-        let hover = gpui::rgb(cx.global::<crate::ui::presets::Surfaces>().sidebar.hover);
         let size = right_panel_tab_size(window);
         let font = right_panel_tab_font(cx);
         let ts = window.text_system();
@@ -1312,16 +1355,18 @@ impl Tty7App {
             };
             labels_w + TAB_COUNT_GAP + measure_text(ts, &regular, size, &n.to_string()) <= avail
         });
+        let body_ink = cx.theme().foreground;
         RIGHT_PANEL_TABS
             .into_iter()
             .map(|(tab, label_key)| {
                 let current = active_tab == tab;
                 // Words, not glyphs: three tabs is few enough to name, and a name
                 // is what a new user has to guess at when the tab is an icon. The
-                // current one is told apart by ink and the bar under it, both
-                // neutral — this is secondary navigation, not an action.
+                // current one is told apart by ink and weight alone — this is
+                // secondary navigation, not an action, so it gets neither a
+                // pill nor a bar.
                 let ink = match current {
-                    true => cx.theme().foreground,
+                    true => body_ink,
                     false => cx.theme().muted_foreground,
                 };
                 let count = match tab {
@@ -1334,11 +1379,7 @@ impl Tty7App {
                     // the tabs sit in.
                     .occlude()
                     .flex_shrink_0()
-                    // Full height and `relative` so the bar below can be pinned to
-                    // the row's own bottom edge, where it lands on the hairline
-                    // that closes the row rather than floating under the label.
                     .h_full()
-                    .relative()
                     .flex()
                     .items_center()
                     .px(px(TAB_OUTER_PAD))
@@ -1346,15 +1387,16 @@ impl Tty7App {
                     .child(
                         h_flex()
                             .flex_shrink_0()
-                            .h(px(crate::ui::app::TILE_SIZE_SM + 2.))
                             .px(px(TAB_INNER_PAD))
                             .gap(px(TAB_COUNT_GAP))
                             .items_center()
-                            .rounded_full()
-                            .hover(|s| s.bg(hover))
-                            .text_size(gpui::rems(crate::ui::right_panel::META))
-                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_size(gpui::rems(crate::ui::right_panel::TAB_TEXT))
+                            .font_weight(match current {
+                                true => FontWeight::MEDIUM,
+                                false => FontWeight::NORMAL,
+                            })
                             .text_color(ink)
+                            .hover(move |s| s.text_color(body_ink))
                             .child(div().flex_shrink_0().child(t(label_key)))
                             .when_some(count, |row, n| {
                                 row.child(
@@ -1365,16 +1407,6 @@ impl Tty7App {
                                         .child(n.to_string()),
                                 )
                             }),
-                    )
-                    .child(
-                        div()
-                            .absolute()
-                            .bottom(px(-1.))
-                            .left(px(TAB_OUTER_PAD + TAB_INNER_PAD))
-                            .right(px(TAB_OUTER_PAD + TAB_INNER_PAD))
-                            .h(px(2.))
-                            .rounded_full()
-                            .when(current, |bar| bar.bg(cx.theme().foreground)),
                     )
                     // Another tab switches to it; the current one puts the panel
                     // away, the way an activity bar behaves everywhere else.
@@ -1479,6 +1511,93 @@ impl Tty7App {
         size: f32,
         cx: &App,
     ) -> gpui::AnyElement {
+        self.tab_avatar_badged(id, agent, status, unread, ssh, size, true, cx)
+    }
+
+    /// The avatar without the agent's status badge, for a row that says the
+    /// status at its trailing end instead (see [`row_status_dot`]). The
+    /// tooltip still names the state; the SSH dot on a shell stays, since it
+    /// describes the connection rather than an agent's run.
+    ///
+    /// [`row_status_dot`]: Self::row_status_dot
+    pub(crate) fn tab_avatar_plain(
+        &self,
+        id: impl Into<gpui::ElementId>,
+        agent: Option<crate::core::cli_agent::CLIAgent>,
+        status: Option<crate::core::cli_agent::AgentStatus>,
+        ssh: Option<u32>,
+        size: f32,
+        cx: &App,
+    ) -> gpui::AnyElement {
+        self.tab_avatar_badged(id, agent, status, 0, ssh, size, false, cx)
+    }
+
+    /// A row's trailing status mark: a 5px dot in the state's colour, hollow
+    /// while the agent waits on the user, blinking while it works — or the
+    /// unread count in a small pill once there is something to read. `None`
+    /// for a row with nothing to report.
+    pub(crate) fn row_status_dot(
+        &self,
+        status: Option<crate::core::cli_agent::AgentStatus>,
+        unread: usize,
+        surface: gpui::Hsla,
+    ) -> Option<gpui::AnyElement> {
+        let rgb = status.and_then(|s| s.dot_rgb())?;
+        let hollow = status == Some(crate::core::cli_agent::AgentStatus::Waiting);
+        let faded =
+            status == Some(crate::core::cli_agent::AgentStatus::Working) && !self.working_dot_on;
+        let ink: gpui::Hsla = gpui::rgb(rgb).into();
+        let fill = match faded {
+            true => surface.blend(ink.opacity(0.4)),
+            false => ink,
+        };
+        let slot = div()
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .min_w(px(ROW_STATUS_SLOT));
+        Some(
+            match unread > 0 {
+                true => slot.child(
+                    div()
+                        .h(px(14.))
+                        .min_w(px(14.))
+                        .px(px(3.))
+                        .rounded_full()
+                        .bg(fill)
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .text_size(px(9.))
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(gpui::white())
+                        .child(unread.min(9).to_string()),
+                ),
+                false => slot.child(
+                    div()
+                        .size(px(ROW_STATUS_DOT))
+                        .rounded_full()
+                        .when(!hollow, |d| d.bg(fill))
+                        .when(hollow, |d| d.border_1().border_color(fill)),
+                ),
+            }
+            .into_any_element(),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn tab_avatar_badged(
+        &self,
+        id: impl Into<gpui::ElementId>,
+        agent: Option<crate::core::cli_agent::CLIAgent>,
+        status: Option<crate::core::cli_agent::AgentStatus>,
+        unread: usize,
+        ssh: Option<u32>,
+        size: f32,
+        badge: bool,
+        cx: &App,
+    ) -> gpui::AnyElement {
         avatar_disc(
             id,
             crate::ui::search::Avatar {
@@ -1489,6 +1608,7 @@ impl Tty7App {
             },
             size,
             self.working_dot_on,
+            badge,
             cx,
         )
     }
@@ -1573,6 +1693,37 @@ impl Tty7App {
         label_of(&view, index, home.as_deref())
     }
 
+    /// The same ladder as [`tab_label`](Self::tab_label), left whole: a path
+    /// is only abbreviated under the home and stripped of its `user@host:`,
+    /// never cut down to its last segments. For the surfaces with room to
+    /// spare — the rail's rows and the centred title — where only the width
+    /// they have may decide what gets elided, not a segment count picked for
+    /// the chips. `None` when there is nothing to say and the caller should
+    /// fall back to its own placeholder.
+    pub(crate) fn full_tab_label(
+        &self,
+        tab: &Tab,
+        window: Option<&Window>,
+        cx: &App,
+    ) -> Option<String> {
+        use crate::ui::machine_mirror::TabLabel;
+
+        if let Some(name) = tab.name.as_ref().filter(|n| !n.trim().is_empty()) {
+            return Some(name.trim().to_string());
+        }
+        let (view, home) = tab.label_view(window, cx);
+        let raw = match view.label() {
+            TabLabel::Osc(title) | TabLabel::Cwd(title) => {
+                abbreviate_home(strip_host_prefix(title.trim()), home.as_deref()).into_owned()
+            }
+            TabLabel::Agent(agent) => agent.display_name().to_string(),
+            TabLabel::Named(name) => name.to_string(),
+            TabLabel::Process(title) => title.to_string(),
+            TabLabel::Unknown => String::new(),
+        };
+        (!raw.trim().is_empty()).then_some(raw)
+    }
+
     /// The New Tab control: one `+` that drops the list of everything it could
     /// open — the installed shells, and the saved SSH hosts.
     ///
@@ -1591,25 +1742,46 @@ impl Tty7App {
         id: &'static str,
         cx: &Context<Self>,
     ) -> impl IntoElement + use<> {
+        self.new_tab_button_sized(id, crate::ui::app::TILE_SIZE, cx)
+    }
+
+    /// [`new_tab_button`](Self::new_tab_button) at another tile size — the
+    /// rail's header draws its two tiles at `RAIL_TILE`.
+    pub(crate) fn new_tab_button_sized(
+        &self,
+        id: &'static str,
+        tile: f32,
+        cx: &Context<Self>,
+    ) -> impl IntoElement + use<> {
         let app = cx.entity().downgrade();
-        chrome_tile(Button::new(id).icon(Icon::new(IconName::Plus)), false, cx)
-            .rounded_lg()
-            // Every other tile in this row names itself on hover — Switch
-            // Workspace, More, Hide Sidebar. The three New Tab buttons that
-            // come through here were the ones left silent. The chord is worth
-            // more here than anywhere else in the row: it is the way back to
-            // opening a tab without reading a menu first.
-            .tooltip_element(chord_tooltip(t(L10nKey::AppMenuNewTab), "NewTab", cx))
-            // Built when the menu opens, not when the strip draws: this
-            // closure runs once per press, and again after each dismissal.
-            .dropdown_menu(move |menu, window, cx| {
-                let Some(this) = app.upgrade() else {
-                    return menu;
-                };
-                this.read(cx)
-                    .new_tab_menu_rows(app.clone(), cx)
-                    .build(menu, window)
-            })
+        let glyph = match tile < crate::ui::app::TILE_SIZE {
+            true => RAIL_TILE_GLYPH,
+            false => TILE_GLYPH,
+        };
+        chrome_tile_sized(
+            Button::new(id).icon(Icon::new(IconName::Plus)),
+            tile,
+            glyph,
+            false,
+            cx,
+        )
+        .rounded(px(RAIL_TILE_RADIUS))
+        // Every other tile in this row names itself on hover — Switch
+        // Workspace, More, Hide Sidebar. The three New Tab buttons that
+        // come through here were the ones left silent. The chord is worth
+        // more here than anywhere else in the row: it is the way back to
+        // opening a tab without reading a menu first.
+        .tooltip_element(chord_tooltip(t(L10nKey::AppMenuNewTab), "NewTab", cx))
+        // Built when the menu opens, not when the strip draws: this
+        // closure runs once per press, and again after each dismissal.
+        .dropdown_menu(move |menu, window, cx| {
+            let Some(this) = app.upgrade() else {
+                return menu;
+            };
+            this.read(cx)
+                .new_tab_menu_rows(app.clone(), cx)
+                .build(menu, window)
+        })
     }
 
     /// What the menu offers, read off the app as the menu opens — the builder
@@ -2059,7 +2231,10 @@ impl Tty7App {
                     // the field would reach the chip behind it and switch away
                     // from the name being typed, taking the focus with it.
                     .on_click(|_, _, cx| cx.stop_propagation())
-                    .child(Input::new(&input).appearance(false))
+                    // No inset of its own: the label it replaces starts
+                    // flush, and the field's 12px padding jumped the name
+                    // sideways the moment rename began.
+                    .child(Input::new(&input).appearance(false).px_0())
                     .into_any_element(),
                 None => div()
                     .id(("tab-label", i))
@@ -2326,6 +2501,36 @@ impl Tty7App {
         // drops them while a docked document holds the right edge.
         let right_chrome = strip_chrome.then(|| self.window_chrome(window, cx));
 
+        // With the tabs in the rail, the bar over the terminal names the one
+        // in front: centred, small, and in caption ink, the way a document
+        // window titles itself. It is painted under the tiles and carries no
+        // hitbox, so the bar still drags the window and the tiles still click.
+        let centre_title = (!show_chips)
+            .then(|| self.tabs.get(active))
+            .flatten()
+            .map(|tab| {
+                // Whole, not `tab_label`'s three segments: the bar has half the
+                // window to spend, and the rail beside it spells the same tab
+                // out in full.
+                let title = self
+                    .full_tab_label(tab, Some(window), cx)
+                    .unwrap_or_else(|| self.tab_label(tab, active, Some(window), cx));
+                div()
+                    .absolute()
+                    .inset_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        div()
+                            .max_w(gpui::relative(0.5))
+                            .truncate()
+                            .text_size(window.rem_size() * 0.75)
+                            .text_color(cx.theme().muted_foreground)
+                            .child(SharedString::from(title)),
+                    )
+            });
+
         h_flex()
             .id("tab-strip")
             .relative()
@@ -2335,6 +2540,7 @@ impl Tty7App {
             .when(!show_chips, |this| this.w_full())
             .pl_0()
             .min_w_0()
+            .when_some(centre_title, |this, title| this.child(title))
             .when_some(left_group, |this, g| this.child(g))
             .child(chips)
             .when(show_chips, move |this| this.child(add_button))
@@ -2370,7 +2576,7 @@ pub(crate) fn avatar(
     size: f32,
     cx: &App,
 ) -> gpui::AnyElement {
-    avatar_disc(id, avatar, size, true, cx)
+    avatar_disc(id, avatar, size, true, true, cx)
 }
 
 fn avatar_disc(
@@ -2383,6 +2589,7 @@ fn avatar_disc(
     }: crate::ui::search::Avatar,
     size: f32,
     blink_on: bool,
+    badge: bool,
     cx: &App,
 ) -> gpui::AnyElement {
     // The wrapper positions; the disc below carries the radius.
@@ -2404,13 +2611,16 @@ fn avatar_disc(
     match agent {
         Some(agent) => {
             let hollow = status == Some(crate::core::cli_agent::AgentStatus::Waiting);
-            let dot = status.and_then(|s| s.dot_rgb()).map(|rgb| {
-                // A working agent's dot blinks, so a column of tabs
-                // says at a glance which ones are still going.
-                let faded =
-                    status == Some(crate::core::cli_agent::AgentStatus::Working) && !blink_on;
-                Tty7App::status_dot(rgb, unread, size, cx.theme().background, hollow, faded)
-            });
+            let dot = status
+                .filter(|_| badge)
+                .and_then(|s| s.dot_rgb())
+                .map(|rgb| {
+                    // A working agent's dot blinks, so a column of tabs
+                    // says at a glance which ones are still going.
+                    let faded =
+                        status == Some(crate::core::cli_agent::AgentStatus::Working) && !blink_on;
+                    Tty7App::status_dot(rgb, unread, size, cx.theme().background, hollow, faded)
+                });
             // Which agent this is, and what it wants, were carried entirely
             // by a brand hue and a nine-pixel dot. Say it in words too.
             let tip = match agent_status_label(status) {

@@ -2,6 +2,7 @@ pub mod agent_launch;
 pub mod app;
 pub mod assets;
 pub mod code_editor;
+pub mod dialog;
 pub mod diff_list;
 pub mod diff_overlay;
 pub mod diff_rows;
