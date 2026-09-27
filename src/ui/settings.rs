@@ -4003,16 +4003,16 @@ mod gpui_tests {
         let modifier = vcx.update(|_, cx| cx.global::<Config>().mouse_zoom_modifier);
         assert_eq!(
             modifier,
-            MouseZoomModifier::Platform,
-            "the wheel still zooms out of the box"
+            MouseZoomModifier::None,
+            "the wheel only scrolls out of the box"
         );
 
         app.update_in(&mut vcx, |app, _, cx| {
-            app.set_mouse_zoom_modifier(MouseZoomModifier::None, cx)
+            app.set_mouse_zoom_modifier(MouseZoomModifier::Platform, cx)
         });
         vcx.run_until_parked();
         let modifier = vcx.update(|_, cx| cx.global::<Config>().mouse_zoom_modifier);
-        assert_eq!(modifier, MouseZoomModifier::None, "and the pick sticks");
+        assert_eq!(modifier, MouseZoomModifier::Platform, "and the pick sticks");
     }
 
     /// The Input page paints with the prompt editor off — that is the state

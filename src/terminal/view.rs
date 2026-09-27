@@ -13688,6 +13688,7 @@ mod gpui_tests {
     #[gpui::test]
     fn the_zoom_modifier_takes_the_wheel_off_the_scrollback(cx: &mut TestAppContext) {
         let (window, _daemon) = harness(cx);
+        cx.update(|cx| cx.global_mut::<Config>().mouse_zoom_modifier = MouseZoomModifier::Platform);
         window
             .update(cx, |view, w, cx| {
                 scroll_into_history(view, 10);
@@ -13779,6 +13780,7 @@ mod gpui_tests {
     #[gpui::test]
     fn a_zoom_gesture_keeps_zooming_after_the_modifier_is_released(cx: &mut TestAppContext) {
         let (window, _daemon) = harness(cx);
+        cx.update(|cx| cx.global_mut::<Config>().mouse_zoom_modifier = MouseZoomModifier::Platform);
         window
             .update(cx, |view, w, cx| {
                 scroll_into_history(view, 10);
@@ -13798,6 +13800,7 @@ mod gpui_tests {
     #[gpui::test]
     fn a_new_gesture_is_not_bound_by_what_the_last_one_answered(cx: &mut TestAppContext) {
         let (window, _daemon) = harness(cx);
+        cx.update(|cx| cx.global_mut::<Config>().mouse_zoom_modifier = MouseZoomModifier::Platform);
         window
             .update(cx, |view, w, cx| {
                 scroll_into_history(view, 10);

@@ -98,6 +98,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The mouse wheel no longer zooms the font by default.** ⌘ (Ctrl elsewhere)
+  plus the wheel used to resize the font, and ⌘ is held for so much else that
+  the text jumped size mid-scroll. `mouse_zoom_modifier` now defaults to
+  `none`; pick a modifier in Settings to have the wheel zoom again. ⌘+ / ⌘−
+  are unchanged.
+
 - **The command palette is now Search Everywhere, with tabs.** <kbd>⌘ P</kbd>
   (<kbd>Ctrl ⇧ P</kbd> elsewhere) opens one search over four tabs — **All**,
   **Actions**, **Terminals** and **Hosts** — walked with <kbd>⇥</kbd> /
