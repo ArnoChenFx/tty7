@@ -15,6 +15,16 @@ use crate::ui::app::{
 use crate::ui::i18n::{L10nKey, t, t_fmt};
 use crate::ui::scrollbar::with_vertical_scrollbar;
 
+/// The tab a stored choice shows. Search was a tab of its own until the
+/// Files tab took over searching file contents; a config that still says
+/// `"search"` opens on Files.
+pub(crate) fn shown_tab(tab: RightPanelTab) -> RightPanelTab {
+    match tab {
+        RightPanelTab::Search => RightPanelTab::Files,
+        tab => tab,
+    }
+}
+
 /// Wide enough for the three word tabs, bare, beside the two chrome tiles at
 /// the default interface size — the Changes count is dropped before a label is
 /// ever cut. A larger UI font raises the floor past this; see
@@ -517,11 +527,13 @@ impl Tty7App {
     }
 
     pub(crate) fn set_right_panel_tab(&mut self, tab: RightPanelTab, cx: &mut Context<Self>) {
-        // Every way to the Search tab ends here, and none of them has a
-        // `Window` to move focus with; the tab takes it on its next frame.
+        // Every way to find in files ends here, and none of them has a
+        // `Window` to move focus with; the Files field takes it on its next
+        // frame.
         if tab == RightPanelTab::Search {
             self.panel_search.focus_pending = true;
         }
+        let tab = shown_tab(tab);
         self.right_panel_tab = tab;
         self.right_panel_visible = true;
         self.update_config(cx, |cfg| {
@@ -552,8 +564,7 @@ impl Tty7App {
         let body = match tab {
             RightPanelTab::Info => self.render_panel_info(window, cx),
             RightPanelTab::Scm => self.render_panel_scm(window, cx),
-            RightPanelTab::Files => self.render_panel_files(window, cx),
-            RightPanelTab::Search => self.render_panel_search(window, cx),
+            RightPanelTab::Files | RightPanelTab::Search => self.render_panel_files(window, cx),
             RightPanelTab::GitHub => self.render_panel_github(window, cx),
         };
         let (backing, handle) = self.right_panel_resize(window, cx);
@@ -1989,8 +2000,15 @@ impl Tty7App {
             return self.render_panel_sftp(host.unwrap_or_default(), window, cx);
         }
 
+        if std::mem::take(&mut self.panel_search.focus_pending) {
+            self.file_search
+                .update(cx, |input, cx| input.focus(window, cx));
+        }
         let title = self.panel_title(t(L10nKey::PanelFilesTitle), None, None, window, cx);
-        let search = self.panel_search(&self.file_search.clone(), cx);
+        // One field for names and text alike. The switches only shape the
+        // text search; names are always matched loosely.
+        let toggles = self.panel_search_toggles(cx);
+        let search = self.panel_search_with(&self.file_search.clone(), Some(toggles), cx);
         let rows = self.render_file_tree_rows(window, cx);
         v_flex()
             .flex_1()

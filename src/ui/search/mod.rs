@@ -1,6 +1,6 @@
-//! Search Everywhere: one modal over everything the app can find — files,
-//! actions, terminals, hosts — each in a tab of its own, and all of them at
-//! once in the All tab.
+//! Search Everywhere: one modal over everything the app can find — terminals,
+//! sessions, hosts, actions — each in a tab of its own, and all of them at
+//! once in the All tab. Files are Go to File's alone (see [`SearchTab::ORDER`]).
 //!
 //! - [`command`]: what a row runs ([`CommandKind`]) and the rows themselves.
 //! - [`sources`]: what each tab holds and how it ranks against a query.
@@ -35,15 +35,18 @@ pub(crate) enum SearchTab {
 impl SearchTab {
     /// The tab row, left to right, and the order Tab walks it.
     ///
-    /// Files right after All: it is the tab its own chord opens, and what
-    /// VS Code's ⌘P taught people to expect first.
-    pub(crate) const ORDER: [SearchTab; 6] = [
+    /// Files is not in it. Go to File (its own chord) still opens the search
+    /// on it, but the row, Tab and the All tab leave it out: the right
+    /// panel's Files tab is where the project is searched, names and text
+    /// together, and a sample of paths among tabs and hosts answered nothing
+    /// anyone had typed. Commands last, the way the rest of the row goes
+    /// from the things you have to the things you can do.
+    pub(crate) const ORDER: [SearchTab; 5] = [
         SearchTab::All,
-        SearchTab::Files,
-        SearchTab::Actions,
         SearchTab::Terminals,
         SearchTab::Sessions,
         SearchTab::Hosts,
+        SearchTab::Actions,
     ];
 
     pub(crate) fn title(self) -> &'static str {
@@ -86,11 +89,18 @@ mod tests {
 
     #[test]
     fn tab_steps_wrap_both_ways() {
-        assert_eq!(SearchTab::All.step(true), SearchTab::Files);
-        assert_eq!(SearchTab::Files.step(true), SearchTab::Actions);
-        assert_eq!(SearchTab::Hosts.step(true), SearchTab::All);
-        assert_eq!(SearchTab::All.step(false), SearchTab::Hosts);
-        assert_eq!(SearchTab::Terminals.step(false), SearchTab::Actions);
+        assert_eq!(SearchTab::All.step(true), SearchTab::Terminals);
+        assert_eq!(SearchTab::Hosts.step(true), SearchTab::Actions);
+        assert_eq!(SearchTab::Actions.step(true), SearchTab::All);
+        assert_eq!(SearchTab::All.step(false), SearchTab::Actions);
+        assert_eq!(SearchTab::Terminals.step(false), SearchTab::All);
         assert_eq!(SearchTab::Terminals.step(true), SearchTab::Sessions);
+    }
+
+    #[test]
+    fn files_is_reached_by_its_chord_not_by_the_row() {
+        assert!(!SearchTab::ORDER.contains(&SearchTab::Files));
+        // Tab out of Go to File lands on the row again.
+        assert_eq!(SearchTab::Files.step(true), SearchTab::Terminals);
     }
 }

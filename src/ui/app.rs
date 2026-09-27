@@ -1370,7 +1370,6 @@ impl Tty7App {
         };
         let sftp_panel = crate::ui::sftp::SftpPanelState::new(window, cx);
         let file_tree = crate::ui::file_tree::FileTreeState::new(window, cx);
-        let panel_search = crate::ui::panel_search::PanelSearchState::new(window, cx);
         let editor = crate::ui::code_editor::EditorPanelState::new(window, cx);
         let mf_bind_host = cx.new(|cx| InputState::new(window, cx).default_value("127.0.0.1"));
         let mf_bind_port = cx.new(|cx| InputState::new(window, cx).placeholder("8080"));
@@ -1383,7 +1382,8 @@ impl Tty7App {
         let right_panel_width = cx.global::<Config>().right_panel_width;
         let document_ratio = cx.global::<Config>().document_ratio;
         let right_panel_visible = cx.global::<Config>().right_panel_visible;
-        let right_panel_tab = cx.global::<Config>().right_panel_tab;
+        let right_panel_tab =
+            crate::ui::right_panel::shown_tab(cx.global::<Config>().right_panel_tab);
         let scm_graph_expanded = cx.global::<Config>().scm_graph_expanded;
         let sidebar_collapsed = cx.global::<Config>().sidebar_collapsed;
         let config_watch = cx.observe_global_in::<Config>(window, |this, window, cx| {
@@ -1486,6 +1486,10 @@ impl Tty7App {
                 cx.notify();
             }
         });
+        // The Files tab's one field drives both of its searches: names here,
+        // and what the files say through the content search.
+        let panel_search =
+            crate::ui::panel_search::PanelSearchState::new(file_search.clone(), window, cx);
         let mut app = Self {
             tabs,
             active,
@@ -6926,9 +6930,6 @@ impl Tty7App {
         });
         self.file_search.update(cx, |state, cx| {
             state.set_placeholder(t(L10nKey::SearchFiles), window, cx)
-        });
-        self.panel_search.input.update(cx, |state, cx| {
-            state.set_placeholder(t(L10nKey::PanelSearchPlaceholder), window, cx)
         });
         // The remote Files panel is built once with the app, so its placeholder
         // is the one input that would otherwise keep the old language.

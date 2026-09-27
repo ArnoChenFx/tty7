@@ -1677,11 +1677,28 @@ impl Tty7App {
         // A search that found nothing, and a tab with no directory behind it,
         // both used to render as an empty column that looks identical to a
         // tree still loading.
-        let blank = rows.is_empty().then(|| {
-            let text = match self.file_tree_searching(cx) {
-                true => t_fmt(L10nKey::SettingsNothingMatches, &[("query", &query)]),
-                false => t(L10nKey::OpenFileFromTree).to_string(),
-            };
+        // Searching, the column is v5's two sections: the names that match,
+        // then what the files say. Either can be empty; the contents section
+        // speaks for itself, so a names section with nothing in it just
+        // steps aside.
+        let searching = self.file_tree_searching(cx);
+        let names_heading = (searching && !rows.is_empty()).then(|| {
+            let found = rows.iter().filter(|r| r.note.is_none()).count();
+            search_section_heading(
+                t(L10nKey::PanelFilesNameMatches),
+                Some(found.to_string()),
+                cx,
+            )
+        });
+        // Asked for either way: with the field emptied, this is what lets the
+        // content search drop its last answer.
+        let contents = self.panel_search_section(window, cx);
+        let contents = match searching {
+            true => contents,
+            false => Vec::new(),
+        };
+        let blank = (rows.is_empty() && !searching).then(|| {
+            let text = t(L10nKey::OpenFileFromTree).to_string();
             div()
                 .px(px(ROW_INSET))
                 .py_4()
@@ -1702,7 +1719,13 @@ impl Tty7App {
                 this.file_tree_key_down(ev, window, cx);
             }))
             .children(blank)
+            .children(names_heading)
             .children(self.render_tree_children(&rows, &decor, window, cx))
+            .when(!contents.is_empty(), |column| {
+                column
+                    .child(div().flex_none().h(px(SEARCH_SECTION_GAP)))
+                    .children(contents)
+            })
             // Everything the rows do not cover — the gap below the last one,
             // and the whole column while the tree is still empty — belongs to
             // the top of the tree. A row under the cursor wins: gpui hands a
@@ -2449,6 +2472,38 @@ fn event_can_change_a_row(path: &Path, show_hidden: bool) -> bool {
         || !path
             .file_name()
             .is_some_and(|n| n.to_string_lossy().starts_with('.'))
+}
+
+/// Between the Files tab's two search sections.
+const SEARCH_SECTION_GAP: f32 = 10.;
+
+/// A heading over one of the Files tab's search sections — "File names",
+/// "In file contents" — with its tally at the trailing edge, in caption ink.
+pub(crate) fn search_section_heading(label: &str, tally: Option<String>, cx: &App) -> AnyElement {
+    let muted = cx.theme().muted_foreground;
+    h_flex()
+        .flex_none()
+        .h(px(22.))
+        .px(px(ROW_INSET))
+        .items_center()
+        .gap(px(8.))
+        .text_size(gpui::rems(crate::ui::right_panel::HEADING))
+        .text_color(muted)
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .font_weight(gpui::FontWeight::MEDIUM)
+                .child(label.to_string()),
+        )
+        .children(tally.map(|n| {
+            div()
+                .flex_none()
+                .font_features(crate::ui::theme::tabular_figures())
+                .child(n)
+        }))
+        .into_any_element()
 }
 
 #[cfg(test)]

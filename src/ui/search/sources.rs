@@ -728,30 +728,26 @@ mod tests {
         catalog
     }
 
-    /// Files join the All tab once something is typed, under their own
-    /// header, and stay out of it before — a sample of the project is not an
-    /// answer to anything.
+    /// Files stay off the All tab, typed or not: the right panel's Files tab
+    /// searches the project, and Go to File has the search to itself.
     #[gpui::test]
-    fn files_are_on_the_all_tab_only_once_a_query_finds_them(cx: &mut TestAppContext) {
+    fn files_are_only_on_their_own_tab(cx: &mut TestAppContext) {
         with_config(cx);
         let catalog = with_files(&["src/main.rs", "src/ui/app.rs"]);
         cx.update(|cx| {
-            // No dot in it: `main.rs` also reads as a host name, and a typed
-            // address leads the All tab whatever else matches.
-            let sections = catalog.sections(SearchTab::All, "ui/app", cx);
-            assert_eq!(sections[0].title.as_deref(), Some("Files"));
-            assert_eq!(row_titles(&sections[0]), vec!["app.rs"]);
+            for query in ["", "ui/app"] {
+                let sections = catalog.sections(SearchTab::All, query, cx);
+                let headers: Vec<_> = sections.iter().filter_map(|s| s.title.clone()).collect();
+                assert!(
+                    !headers.iter().any(|h| h == "Files"),
+                    "no files on the All tab for {query:?}: {headers:?}"
+                );
+            }
 
-            let empty = catalog.sections(SearchTab::All, "", cx);
-            let headers: Vec<_> = empty.iter().filter_map(|s| s.title.clone()).collect();
-            assert!(
-                !headers.iter().any(|h| h == "Files"),
-                "no files before a query: {headers:?}"
-            );
-
-            // The tab itself shows some before anything is typed.
             let own = catalog.sections(SearchTab::Files, "", cx);
             assert_eq!(own[0].rows.len(), 2);
+            let found = catalog.sections(SearchTab::Files, "ui/app", cx);
+            assert_eq!(row_titles(&found[0]), vec!["app.rs"]);
         });
     }
 
