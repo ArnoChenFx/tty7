@@ -13,10 +13,9 @@ use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::core::actions::{
     CloseActiveTab, CloseOtherTabs, CloseTabsToTheRight, CopyAgentSessionId, CopyWorkingDirectory,
-    ForkAgentSession, HibernateTab, MarkTabUnread, NewWorktreeTab, OpenSettings, RenameTab,
-    SelectWorkspace1, SelectWorkspace2, SelectWorkspace3, SelectWorkspace4, SelectWorkspace5,
-    SelectWorkspace6, SelectWorkspace7, SelectWorkspace8, SelectWorkspace9, SplitDown, SplitRight,
-    TogglePalette,
+    ForkAgentSession, HibernateTab, MarkTabUnread, NewWorktreeTab, RenameTab, SelectWorkspace1,
+    SelectWorkspace2, SelectWorkspace3, SelectWorkspace4, SelectWorkspace5, SelectWorkspace6,
+    SelectWorkspace7, SelectWorkspace8, SelectWorkspace9, SplitDown, SplitRight,
 };
 use crate::core::config::{Config, RightPanelTab};
 use crate::core::shells::DetectedShell;
@@ -715,6 +714,11 @@ const MENU_HOSTS: usize = 6;
 /// by frecency. Everything else is one row away, in the search.
 const MENU_SHELLS: usize = 3;
 
+/// The Search Everywhere button in the middle of the title bar: the width of
+/// a field that reads as one, and the 28px of the rail's own search.
+const TITLEBAR_SEARCH_W: f32 = 360.;
+const TITLEBAR_SEARCH_H: f32 = 28.;
+
 /// How wide the New Tab menu is allowed to get.
 const MENU_W: Pixels = px(360.);
 
@@ -1217,52 +1221,13 @@ impl Tty7App {
             .into_any_element()
     }
 
-    /// The app menu tile, `tile` px square with the chrome glyph in it.
-    pub(crate) fn app_menu_tile(
-        &self,
-        tile: f32,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
-        let action_ctx = self
-            .tabs
-            .get(self.active)
-            .and_then(|t| t.pane.focused_or_first(window, cx))
-            .map(|leaf| leaf.read(cx).focus_handle.clone())
-            .unwrap_or_else(|| self.home_focus.clone());
-        div().occlude().flex_shrink_0().child(
-            chrome_tile_sized(
-                Button::new("titlebar-app-menu").icon(IconName::Ellipsis),
-                tile,
-                TILE_GLYPH,
-                false,
-                cx,
-            )
-            .rounded_lg()
-            .tooltip(t(L10nKey::TabTooltipMore))
-            .dropdown_menu_with_anchor(
-                gpui::Anchor::TopRight,
-                move |menu, _window, _cx| {
-                    menu.min_w(px(200.))
-                        .action_context(action_ctx.clone())
-                        .menu(t(L10nKey::AppMenuSearchEverywhere), Box::new(TogglePalette))
-                        .menu(t(L10nKey::AppMenuSettings), Box::new(OpenSettings))
-                },
-            ),
-        )
-    }
-
     /// Persistent window controls, including when either sidebar is collapsed.
-    pub(crate) fn window_chrome(
-        &self,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement + use<> {
+    pub(crate) fn window_chrome(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let trailing = match cfg!(target_os = "macos") {
             true => tile_trailing_inset(),
             false => 4.,
         };
-        self.window_chrome_sized(TILE_SIZE, 2., trailing, window, cx)
+        self.window_chrome_sized(TILE_SIZE, 2., trailing, cx)
     }
 
     /// [`Self::window_chrome`] at another size: `tile` px squares, `gap` apart,
@@ -1274,7 +1239,6 @@ impl Tty7App {
         tile: f32,
         gap: f32,
         trailing: f32,
-        window: &Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let panel_open = self.right_panel_open(cx);
@@ -1317,7 +1281,6 @@ impl Tty7App {
                     })),
                 ),
             )
-            .child(self.app_menu_tile(tile, window, cx))
     }
 
     /// The right panel's word tabs, laid out in `avail` px.
@@ -2499,37 +2462,58 @@ impl Tty7App {
 
         // macOS places these controls in the open panel's own title bar, and
         // drops them while a docked document holds the right edge.
-        let right_chrome = strip_chrome.then(|| self.window_chrome(window, cx));
+        let right_chrome = strip_chrome.then(|| self.window_chrome(cx));
 
-        // With the tabs in the rail, the bar over the terminal names the one
-        // in front: centred, small, and in caption ink, the way a document
-        // window titles itself. It is painted under the tiles and carries no
-        // hitbox, so the bar still drags the window and the tiles still click.
-        let centre_title = (!show_chips)
-            .then(|| self.tabs.get(active))
-            .flatten()
-            .map(|tab| {
-                // Whole, not `tab_label`'s three segments: the bar has half the
-                // window to spend, and the rail beside it spells the same tab
-                // out in full.
-                let title = self
-                    .full_tab_label(tab, Some(window), cx)
-                    .unwrap_or_else(|| self.tab_label(tab, active, Some(window), cx));
-                div()
-                    .absolute()
-                    .inset_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        div()
-                            .max_w(gpui::relative(0.5))
-                            .truncate()
-                            .text_size(window.rem_size() * 0.75)
-                            .text_color(cx.theme().muted_foreground)
-                            .child(SharedString::from(title)),
-                    )
-            });
+        // With the tabs in the rail, the middle of the bar over the terminal
+        // is the way into Search Everywhere: a field-shaped button, centred,
+        // that opens the search where it stands. The rail beside it already
+        // names every tab, so the bar has no title of its own to repeat. The
+        // box alone takes the pointer; the rest of the bar still drags.
+        let centre_search = (!show_chips).then(|| {
+            // The chord as text, not caps: a cap's fill is this box's own
+            // grey, so on it a cap is only a gap between two letters.
+            let chord = crate::ui::keymap::effective_key("TogglePalette", cx)
+                .map(|spec| crate::ui::keymap::key_tokens(&spec).join(""));
+            div()
+                .absolute()
+                .inset_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    h_flex()
+                        .id("titlebar-search")
+                        .occlude()
+                        .w(px(TITLEBAR_SEARCH_W))
+                        .max_w(gpui::relative(0.5))
+                        .h(px(TITLEBAR_SEARCH_H))
+                        .items_center()
+                        .gap(px(7.))
+                        .pl(px(10.))
+                        .pr(px(10.))
+                        .rounded(px(7.))
+                        .bg(cx.theme().muted)
+                        .cursor_pointer()
+                        .text_size(window.rem_size() * 0.8125)
+                        .text_color(cx.theme().muted_foreground)
+                        .hover(|s| s.text_color(cx.theme().foreground))
+                        .child(Icon::new(IconName::Search).size(px(12.)).flex_shrink_0())
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .truncate()
+                                .child(t(L10nKey::AppMenuSearchEverywhere)),
+                        )
+                        .when_some(chord, |row, chord| {
+                            row.child(div().flex_shrink_0().child(chord))
+                        })
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.open_search(SearchTab::All, "", window, cx)
+                        })),
+                )
+        });
 
         h_flex()
             .id("tab-strip")
@@ -2540,7 +2524,7 @@ impl Tty7App {
             .when(!show_chips, |this| this.w_full())
             .pl_0()
             .min_w_0()
-            .when_some(centre_title, |this, title| this.child(title))
+            .when_some(centre_search, |this, search| this.child(search))
             .when_some(left_group, |this, g| this.child(g))
             .child(chips)
             .when(show_chips, move |this| this.child(add_button))

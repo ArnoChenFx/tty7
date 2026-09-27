@@ -588,7 +588,6 @@ impl Tty7App {
                         PANEL_CHROME_TILE,
                         PANEL_CHROME_GAP,
                         PANEL_CHROME_TRAIL,
-                        window,
                         cx,
                     ))
                 }))
