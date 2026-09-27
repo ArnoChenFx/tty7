@@ -23,8 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Code", "Agent: Codex", … — ordered by how often and how recently it was
   launched or seen running, and each is bindable as `LaunchAgent:<slug>`. "New
   Agent Tab" (⌘⇧A on macOS, unbound elsewhere, where Ctrl+Shift+A is
-  select-all) starts the one used last, and the New Tab menu's "Launch Agent…"
-  row opens the palette on the list. A launch always opens a new tab in the
+  select-all) starts the one used last. A launch always opens a new tab in the
   current tab's directory and types the agent's command into its shell once the
   pane exists, never into a pane that was already there, so detection, status
   and resume work as for a hand-typed agent and quitting it returns to the
@@ -237,8 +236,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Return runs the top row after a search that found nothing.** Backspacing
   from a query with no results to one with some — or opening the search
-  already filtered, as the New Tab menu's *Other Shells…* and *Launch Agent…*
-  rows do — left no row selected, so Return did nothing until an arrow key was
+  already filtered, as the New Tab menu's *Other Shells…* row does — left no row selected, so Return did nothing until an arrow key was
   pressed.
 - **A typed `ssh -p 2222 me@box` is no longer offered as an address.** The
   address parser read everything before the `@` as the user name and offered
