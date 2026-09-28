@@ -2495,12 +2495,12 @@ impl Tty7App {
                         .pl(px(10.))
                         .pr(px(10.))
                         .rounded(px(7.))
-                        // v5's field fill: #f5f5f4 on a light theme, a
-                        // faint lift of the bar on a dark one.
-                        .bg(match cx.theme().mode.is_dark() {
-                            true => cx.theme().muted,
-                            false => gpui::rgb(0xf5f5f4).into(),
-                        })
+                        // The sidebar's own surface: a well of the rail's
+                        // colour set into the bar over the terminal, which
+                        // follows the theme wherever the rail does.
+                        .bg(gpui::rgb(
+                            cx.global::<crate::ui::presets::Surfaces>().sidebar.base,
+                        ))
                         .cursor_pointer()
                         .text_size(window.rem_size() * 0.8125)
                         .text_color(cx.theme().muted_foreground)
