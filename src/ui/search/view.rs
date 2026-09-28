@@ -972,6 +972,12 @@ impl Render for SearchView {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|_this, _: &MouseDownEvent, _window, cx| {
+                    // The scrim covers the title bar's search button too. A
+                    // dismissing press is spent on the dismissal — the
+                    // switcher's rule — or it carried on to that button and
+                    // opened the search straight back up, so clicking it a
+                    // second time looked like it did nothing.
+                    cx.stop_propagation();
                     cx.emit(SearchEvent::Dismiss);
                 }),
             )

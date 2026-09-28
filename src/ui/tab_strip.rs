@@ -2495,7 +2495,12 @@ impl Tty7App {
                         .pl(px(10.))
                         .pr(px(10.))
                         .rounded(px(7.))
-                        .bg(cx.theme().muted)
+                        // v5's field fill: #f5f5f4 on a light theme, a
+                        // faint lift of the bar on a dark one.
+                        .bg(match cx.theme().mode.is_dark() {
+                            true => cx.theme().muted,
+                            false => gpui::rgb(0xf5f5f4).into(),
+                        })
                         .cursor_pointer()
                         .text_size(window.rem_size() * 0.8125)
                         .text_color(cx.theme().muted_foreground)
@@ -2512,9 +2517,12 @@ impl Tty7App {
                             row.child(div().flex_shrink_0().child(chord))
                         })
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.open_search(SearchTab::All, "", window, cx)
-                        })),
+                        .on_click(
+                            cx.listener(|this, _, window, cx| match this.search.is_some() {
+                                true => this.close_search(window, cx),
+                                false => this.open_search(SearchTab::All, "", window, cx),
+                            }),
+                        ),
                 )
         });
 
