@@ -31,10 +31,11 @@ pub enum CLIAgent {
     CodeBuddy,
     Empryo,
     PrimeAgent,
+    QoderCLICn,
 }
 
 impl CLIAgent {
-    pub const ALL: [CLIAgent; 25] = [
+    pub const ALL: [CLIAgent; 26] = [
         CLIAgent::Claude,
         CLIAgent::Codex,
         CLIAgent::TraeCode,
@@ -60,6 +61,7 @@ impl CLIAgent {
         CLIAgent::CodeBuddy,
         CLIAgent::Empryo,
         CLIAgent::PrimeAgent,
+        CLIAgent::QoderCLICn,
     ];
 
     fn aliases(self) -> &'static [&'static str] {
@@ -102,6 +104,11 @@ impl CLIAgent {
             // launch is the cost: it wears the CLI's avatar for as long as the
             // launcher takes to exit.
             CLIAgent::QoderCLI => &["qoder", "qodercli"],
+            // The mainland-China build of Qoder: a different vendor, a separate
+            // install that keeps its state in `~/.qoder-cn`. Like the global
+            // package it installs two binaries, and a bare `qoder` still belongs
+            // to the global one.
+            CLIAgent::QoderCLICn => &["qodercn", "qoderclicn"],
             // Charm's terminal agent. One binary, and the name on `PATH` is
             // the one it starts as.
             CLIAgent::Crush => &["crush"],
@@ -142,6 +149,7 @@ impl CLIAgent {
             CLIAgent::CodeBuddy => "codebuddy",
             CLIAgent::Empryo => "empryo",
             CLIAgent::PrimeAgent => "prime-agent",
+            CLIAgent::QoderCLICn => "qoderclicn",
         }
     }
 
@@ -177,6 +185,7 @@ impl CLIAgent {
             CLIAgent::CodeBuddy => "CodeBuddy",
             CLIAgent::Empryo => "Empryo",
             CLIAgent::PrimeAgent => "Prime Agent",
+            CLIAgent::QoderCLICn => "Qoder CN CLI",
         }
     }
 
@@ -209,6 +218,7 @@ impl CLIAgent {
             CLIAgent::Copilot => Some(format!("copilot{flags} --resume {session_id}")),
             CLIAgent::Grok => Some(format!("grok{flags} --resume {session_id}")),
             CLIAgent::QoderCLI => Some(format!("qodercli{flags} --resume {session_id}")),
+            CLIAgent::QoderCLICn => Some(format!("qodercn{flags} --resume {session_id}")),
             CLIAgent::Pi => Some(format!("pi{flags} --session {session_id}")),
             CLIAgent::OhMyPi => Some(format!("omp{flags} --resume {session_id}")),
             CLIAgent::Kimi => Some(format!("kimi{flags} --session {session_id}")),
@@ -231,7 +241,9 @@ impl CLIAgent {
             CLIAgent::Qwen => &["--no-chat-recording"],
             // Print mode still emits a session id in hooks when persistence
             // is disabled, but there is no saved conversation to reopen.
-            CLIAgent::QoderCLI | CLIAgent::CodeBuddy => &["--no-session-persistence"],
+            CLIAgent::QoderCLI | CLIAgent::CodeBuddy | CLIAgent::QoderCLICn => {
+                &["--no-session-persistence"]
+            }
             _ => &[],
         };
         argv.iter().any(|t| ephemeral.contains(&t.as_str()))
@@ -251,6 +263,11 @@ impl CLIAgent {
             CLIAgent::Grok => Some(format!("grok{flags} --resume {session_id} --fork-session")),
             CLIAgent::QoderCLI => Some(format!(
                 "qodercli{flags} --resume {session_id} --fork-session"
+            )),
+            // qoder-cn is the same CLI against a different config directory, so
+            // it takes the same switches.
+            CLIAgent::QoderCLICn => Some(format!(
+                "qodercn{flags} --resume {session_id} --fork-session"
             )),
             CLIAgent::CodeBuddy => Some(format!(
                 "codebuddy{flags} --resume {session_id} --fork-session"
@@ -286,6 +303,7 @@ impl CLIAgent {
             | CLIAgent::Qwen
             | CLIAgent::Goose
             | CLIAgent::QoderCLI
+            | CLIAgent::QoderCLICn
             | CLIAgent::CodeBuddy => Some("Fork Session"),
             _ => None,
         }
@@ -492,7 +510,7 @@ impl CLIAgent {
             // appends, and `--fork-session` is the flag the fork variant
             // appends itself. `--worktree` would create or switch trees again;
             // Qoder's `-w` means `--cwd` and must survive.
-            CLIAgent::QoderCLI => &[
+            CLIAgent::QoderCLI | CLIAgent::QoderCLICn => &[
                 "--resume",
                 "-r",
                 "--continue",
@@ -570,6 +588,8 @@ impl CLIAgent {
             // black, which Codex and Grok already have covered.
             CLIAgent::Kimi => 0x027AFF,
             CLIAgent::QoderCLI => 0xFFFFFF,
+            // qoder-cn ships the same mark on the same black field.
+            CLIAgent::QoderCLICn => 0xFFFFFF,
             // The blue-violet field Charm ships the Crush heart on.
             CLIAgent::Crush => 0x6B50FF,
             CLIAgent::Empryo => 0xE8663D,
@@ -594,7 +614,7 @@ impl CLIAgent {
     pub fn icon_rgb(self) -> u32 {
         match self {
             CLIAgent::TraeCode => 0x32F08C,
-            CLIAgent::QoderCLI => 0x000000,
+            CLIAgent::QoderCLI | CLIAgent::QoderCLICn => 0x000000,
             _ => 0xFFFFFF,
         }
     }
@@ -617,6 +637,7 @@ impl CLIAgent {
             CLIAgent::Qwen => "icons/agents/qwen.svg",
             CLIAgent::Kimi => "icons/agents/kimi.svg",
             CLIAgent::QoderCLI => "icons/agents/qodercli.svg",
+            CLIAgent::QoderCLICn => "icons/agents/qoderclicn.svg",
             CLIAgent::Crush => "icons/agents/crush.svg",
             CLIAgent::CodeBuddy => "icons/agents/codebuddy.svg",
             CLIAgent::Aider
@@ -1165,6 +1186,34 @@ mod tests {
                 "on {launcher}"
             );
         }
+    }
+
+    /// The China build installs its own launchers under different names, so a
+    /// bare `qoder` has to stay with the global one.
+    #[test]
+    fn qoder_cn_is_detected_through_either_of_its_binaries() {
+        for launcher in [
+            "qodercn",
+            "qoderclicn",
+            "/c/Users/me/.qoder-cn/entry/qodercn.cmd",
+        ] {
+            assert_eq!(
+                CLIAgent::detect_from_argv(&argv(&[launcher])),
+                Some(CLIAgent::QoderCLICn),
+                "on {launcher}"
+            );
+        }
+        for other in ["qoder", "qodercli"] {
+            assert_eq!(
+                CLIAgent::detect_from_argv(&argv(&[other])),
+                Some(CLIAgent::QoderCLI),
+                "the global build keeps {other}"
+            );
+        }
+        assert_eq!(
+            CLIAgent::from_slug("qoderclicn"),
+            Some(CLIAgent::QoderCLICn)
+        );
     }
 
     /// All three of CodeBuddy's npm bins are node scripts pointing at one file,
