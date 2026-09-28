@@ -2495,11 +2495,11 @@ impl Tty7App {
                         .pl(px(10.))
                         .pr(px(10.))
                         .rounded(px(7.))
-                        // The sidebar's own surface: a well of the rail's
-                        // colour set into the bar over the terminal, which
-                        // follows the theme wherever the rail does.
+                        // The left rail's fill (`Surfaces::rail`, #f5f5f3 /
+                        // #1e1e20 on the default pair) — not `sidebar`, which
+                        // is the window's own fill and vanished into the bar.
                         .bg(gpui::rgb(
-                            cx.global::<crate::ui::presets::Surfaces>().sidebar.base,
+                            cx.global::<crate::ui::presets::Surfaces>().rail.base,
                         ))
                         .cursor_pointer()
                         .text_size(window.rem_size() * 0.8125)
