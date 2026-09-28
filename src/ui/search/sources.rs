@@ -640,7 +640,7 @@ mod tests {
 
             let sections = catalog.sections(SearchTab::All, "split", cx);
             assert_eq!(sections.len(), 1);
-            assert_eq!(sections[0].title.as_deref(), Some("Actions"));
+            assert_eq!(sections[0].title.as_deref(), Some("Commands"));
         });
     }
 
@@ -796,7 +796,7 @@ mod tests {
         cx.update(|cx| {
             let sections = catalog.sections(SearchTab::All, "worktree", cx);
             let headers: Vec<_> = sections.iter().filter_map(|s| s.title.clone()).collect();
-            assert_eq!(headers, vec!["Actions", "Sessions"]);
+            assert_eq!(headers, vec!["Commands", "Sessions"]);
 
             // Typed out, the session is the answer, and it leads.
             let sections = catalog.sections(SearchTab::All, "worktree cleanup", cx);
