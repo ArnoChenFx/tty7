@@ -341,12 +341,12 @@ impl HookAgent {
         HookAgent::Goose,
         HookAgent::Kimi,
         HookAgent::QoderCLI,
+        HookAgent::QoderCLICn,
         HookAgent::Crush,
         HookAgent::CodeBuddy,
         HookAgent::Cursor,
         HookAgent::PrimeAgent,
         HookAgent::Antigravity,
-        HookAgent::QoderCLICn,
     ];
 
     /// The hooks behind a detected agent process, if it has any.
@@ -396,9 +396,7 @@ impl HookAgent {
             HookAgent::Gemini => Some(GEMINI_HOOK_EVENTS),
             HookAgent::Droid => Some(DROID_HOOK_EVENTS),
             HookAgent::Qwen => Some(QWEN_HOOK_EVENTS),
-            HookAgent::QoderCLI => Some(QODER_HOOK_EVENTS),
-            // The China build runs the same agent, so it takes the same table.
-            HookAgent::QoderCLICn => Some(QODER_CN_HOOK_EVENTS),
+            HookAgent::QoderCLI | HookAgent::QoderCLICn => Some(QODER_HOOK_EVENTS),
             HookAgent::Crush => Some(CRUSH_HOOK_EVENTS),
             HookAgent::CodeBuddy => Some(CODEBUDDY_HOOK_EVENTS),
             HookAgent::Cursor => Some(CURSOR_HOOK_EVENTS),
@@ -634,12 +632,16 @@ impl<'a> HookTarget<'a> {
         self.under_home(&[".qoder", "settings.json"])
     }
 
-    /// The China build keeps everything one directory over, in `~/.qoder-cn`,
-    /// and reads the same override under its own name so a relocated install
-    /// does not fork the two builds' state.
+    /// The China build keeps its settings in `~/.qoder-cn`. It resolves the
+    /// directory the same way the global build does, under a `-cn` name:
+    /// `QODERCN_CONFIG_DIR` wins, otherwise the home falls back through
+    /// `QODERCN_CLI_HOME` and `GEMINI_CLI_HOME` before the user's own, with
+    /// `.qoder-cn` as the directory name. Only the first is honoured here —
+    /// local-only, like every other override, so a local env var must not
+    /// redirect a remote machine's hooks.
     fn qoder_cn_settings_path(&self) -> PathBuf {
         if self.is_local()
-            && let Some(dir) = std::env::var_os("QODER_CN_CONFIG_DIR").filter(|d| !d.is_empty())
+            && let Some(dir) = std::env::var_os("QODERCN_CONFIG_DIR").filter(|d| !d.is_empty())
         {
             return PathBuf::from(dir).join("settings.json");
         }
@@ -994,10 +996,6 @@ const QODER_HOOK_EVENTS: &[(&str, &str)] = &[
     ("StopFailure", "stop"),
     ("SessionEnd", "session-end"),
 ];
-
-/// The China build of Qoder runs the same agent and fires the same events, so
-/// it takes Qoder's table verbatim.
-const QODER_CN_HOOK_EVENTS: &[(&str, &str)] = QODER_HOOK_EVENTS;
 
 /// CodeBuddy's hooks are Claude Code's, file layout and event names alike, but
 /// like Qoder it has a first-class `PermissionRequest`, so it takes Qoder's
@@ -1979,7 +1977,6 @@ mod tests {
             .chain(GEMINI_HOOK_EVENTS)
             .chain(DROID_HOOK_EVENTS)
             .chain(QODER_HOOK_EVENTS)
-            .chain(QODER_CN_HOOK_EVENTS)
             .chain(QWEN_HOOK_EVENTS)
             .chain(GOOSE_HOOK_EVENTS)
             .chain(KIMI_HOOK_EVENTS)
@@ -3219,10 +3216,10 @@ mod tests {
                     .env(ROOT_ENV, sandbox.path());
                 match case {
                     "override" => {
-                        child.env("QODER_CN_CONFIG_DIR", sandbox.path().join("custom config"))
+                        child.env("QODERCN_CONFIG_DIR", sandbox.path().join("custom config"))
                     }
-                    "empty" => child.env("QODER_CN_CONFIG_DIR", ""),
-                    _ => child.env_remove("QODER_CN_CONFIG_DIR"),
+                    "empty" => child.env("QODERCN_CONFIG_DIR", ""),
+                    _ => child.env_remove("QODERCN_CONFIG_DIR"),
                 };
                 let output = crate::core::proc::output_within(
                     crate::core::proc::hide_console(&mut child),

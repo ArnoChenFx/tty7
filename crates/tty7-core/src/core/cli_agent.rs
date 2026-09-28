@@ -57,11 +57,11 @@ impl CLIAgent {
         CLIAgent::OhMyPi,
         CLIAgent::Kimi,
         CLIAgent::QoderCLI,
+        CLIAgent::QoderCLICn,
         CLIAgent::Crush,
         CLIAgent::CodeBuddy,
         CLIAgent::Empryo,
         CLIAgent::PrimeAgent,
-        CLIAgent::QoderCLICn,
     ];
 
     fn aliases(self) -> &'static [&'static str] {
@@ -104,11 +104,12 @@ impl CLIAgent {
             // launch is the cost: it wears the CLI's avatar for as long as the
             // launcher takes to exit.
             CLIAgent::QoderCLI => &["qoder", "qodercli"],
-            // The mainland-China build of Qoder: a different vendor, a separate
-            // install that keeps its state in `~/.qoder-cn`. Like the global
-            // package it installs two binaries, and a bare `qoder` still belongs
-            // to the global one.
-            CLIAgent::QoderCLICn => &["qodercn", "qoderclicn"],
+            // The mainland-China build of Qoder: the same vendor as the global
+            // one, a separate install that keeps its state in `~/.qoder-cn`.
+            // It ships the same dispatcher-plus-CLI pair under `-cn` names, so
+            // `qoder-cn` is detected too. A bare `qoder` still belongs to the
+            // global build.
+            CLIAgent::QoderCLICn => &["qodercn", "qoderclicn", "qoder-cn"],
             // Charm's terminal agent. One binary, and the name on `PATH` is
             // the one it starts as.
             CLIAgent::Crush => &["crush"],
@@ -1188,13 +1189,14 @@ mod tests {
         }
     }
 
-    /// The China build installs its own launchers under different names, so a
-    /// bare `qoder` has to stay with the global one.
+    /// The China build installs the same dispatcher-plus-CLI pair under `-cn`
+    /// names, so a bare `qoder` has to stay with the global one.
     #[test]
     fn qoder_cn_is_detected_through_either_of_its_binaries() {
         for launcher in [
             "qodercn",
             "qoderclicn",
+            "qoder-cn",
             "/c/Users/me/.qoder-cn/entry/qodercn.cmd",
         ] {
             assert_eq!(

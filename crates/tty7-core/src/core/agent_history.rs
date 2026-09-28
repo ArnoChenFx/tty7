@@ -70,7 +70,7 @@ pub struct Roots {
     pub droid: PathBuf,
     /// `$QODER_CONFIG_DIR`, else `~/.qoder`.
     pub qoder: PathBuf,
-    /// `$QODER_CN_CONFIG_DIR`, else `~/.qoder-cn`.
+    /// `$QODERCN_CONFIG_DIR`, else `~/.qoder-cn`.
     pub qoder_cn: PathBuf,
     /// `$CODEBUDDY_CONFIG_DIR`, else `~/.codebuddy`.
     pub codebuddy: PathBuf,
@@ -145,7 +145,7 @@ impl Roots {
         if let Some(dir) = var("QODER_CONFIG_DIR") {
             roots.qoder = dir;
         }
-        if let Some(dir) = var("QODER_CN_CONFIG_DIR") {
+        if let Some(dir) = var("QODERCN_CONFIG_DIR") {
             roots.qoder_cn = dir;
         }
         if let Some(dir) = var("CODEBUDDY_CONFIG_DIR") {

@@ -81,6 +81,7 @@ macOS、Windows、Linux 的原生构建都在 [**Releases**](https://github.com/
 | **Droid** | ✓ | ✓ | ✓ |
 | **Qwen Code** | ✓ | ✓ | ✓ |
 | **Goose** | ✓ | ✓ | ✓ |
+| **Qoder CLI** | ✓ | ✓ | ✓ |
 | **Qoder CN CLI** | ✓ | ✓ | ✓ |
 | **Gemini** | ✓ | ✓ | |
 | **Copilot** | ✓ | ✓ | |
