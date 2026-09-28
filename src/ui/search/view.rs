@@ -275,12 +275,21 @@ impl ListDelegate for SearchDelegate {
         };
         // The headline in body ink and the way out under it in caption ink:
         // two greys of the same size read as one sentence cut in half.
+        // The empty view is drawn in place of the rows, so the list's top
+        // padding — the room the scope row is laid over — does not reach it.
+        // It keeps clear of that row itself, and sits on the rows' own column,
+        // left-aligned, the way v5 draws its empty note.
+        let scopes = match self.scope {
+            Scope::Tab(_) => TABS_H,
+            Scope::Themes | Scope::SessionActions => 0.,
+        };
         let theme = cx.theme();
         v_flex()
-            .py(px(32.))
+            .pt(px(scopes + 20.))
+            .pb(px(24.))
             .px(px(LABEL_INSET))
             .gap(px(4.))
-            .items_center()
+            .items_start()
             .text_size(rems(ROW_TEXT))
             .text_color(theme.foreground)
             .child(headline)
